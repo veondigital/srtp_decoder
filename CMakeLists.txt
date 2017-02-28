@@ -39,7 +39,7 @@ else (PCAP_INCLUDE_DIR)
   exec_program(${PCAP_CONFIG_EXECUTABLE} ARGS --cflags OUTPUT_VARIABLE PCAP_CFLAGS )
   exec_program(${PCAP_CONFIG_EXECUTABLE} ARGS --libs   OUTPUT_VARIABLE PCAP_LIBRARIES )
   
-  MESSAGE(STATUS "libpcap cflas: " ${PCAP_CFLAGS})
+  MESSAGE(STATUS "libpcap cflags: " ${PCAP_CFLAGS})
   MESSAGE(STATUS "libpcap libraries: " ${PCAP_LIBRARIES})
   
   set(PCAP_FOUND TRUE)
@@ -54,7 +54,7 @@ endif (PCAP_FOUND)
 ################## SRTP ######################
 
 find_path(SRTP_INCLUDE_DIRS
-	NAMES srtp/srtp.h
+	NAMES srtp2/srtp.h
 	PATH_SUFFIXES include
 )
 
@@ -69,7 +69,7 @@ if(SRTP_INCLUDE_DIRS)
 endif()
 
 find_library(SRTP_LIBRARIES
-	NAMES srtp
+	NAMES srtp2
 	PATH_SUFFIXES bin lib)
 
 if(NOT SRTP_LIBRARIES)

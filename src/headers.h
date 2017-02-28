@@ -14,6 +14,8 @@
 #	include <arpa/inet.h>
 #endif
 
+#define SIZE_ETHERNET 14
+
 /* 4 bytes IP address */
 typedef struct ip_address
 {
@@ -29,7 +31,7 @@ typedef struct ip_header
 	u_char	ver_ihl;		// Version (4 bits) + Internet header length (4 bits)
 	u_char	tos;			// Type of service 
 	u_short tlen;			// Total length 
-	u_short identification; // Identification
+	u_short identification;		// Identification
 	u_short flags_fo;		// Flags (3 bits) + Fragment offset (13 bits)
 	u_char	ttl;			// Time to live
 	u_char	proto;			// Protocol
@@ -39,14 +41,40 @@ typedef struct ip_header
 	u_int	op_pad;			// Option + Padding
 }ip_header;
 
+#define IP_HL(ip)		(((ip)->ver_ihl) & 0x0f)
+#define IP_V(ip)		(((ip)->ver_ihl) >> 4)
+
+#ifndef IPPROTO_UDP
+#define IPPROTO_UDP (17)
+#endif
+#ifndef IPPROTO_TCP
+#define IPPROTO_TCP (6)
+#endif
+
 /* UDP header*/
-typedef struct udp_header
+typedef struct udph
 {
 	u_short sport;			// Source port
 	u_short dport;			// Destination port
 	u_short len;			// Datagram length
 	u_short crc;			// Checksum
 }udp_header;
+
+using tcp_seq = uint32_t;
+/* TCP Header structure as per RFC 793 */
+typedef struct tcph {
+	u_short sport;			/* source port */
+	u_short dport;			/* destination port */
+	tcp_seq seq;			/* sequence number */
+	tcp_seq ack;			/* acknowledgement number */
+	u_char data_offset;
+	u_char flags;
+	u_short win;			/* window */
+	u_short sum;			/* checksum */
+	u_short urp;			/* urgent pointer */
+}tcp_header;
+
+#define TH_OFF(th)  (((th)->data_offset & 0xf0) >> 4)
 
 /* RTP Header*/
 typedef struct {
@@ -75,7 +103,7 @@ typedef struct {
 } rtp_hdr_ex5285_t;
 
 
-/* Turn Channel Dta Header*/
+/* Turn Message 'ChannelData' Header*/
 typedef struct {
 	uint16_t channel_number;
 	uint16_t message_size;
@@ -167,4 +195,5 @@ struct global_params
 {
 	srtp_packets_t srtp_stream;
 	long ssrc;
+	std::string filter;
 };

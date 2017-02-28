@@ -68,6 +68,9 @@ int main(int argc, char* argv[])
 	std::string sha = argv[5];
 	params.ssrc = strtoul(ssrc_str.c_str(), 0, 16);
 	bool container = std::string(argv[6]) == std::string("true");
+	//FIXME
+	if (argc > 7)
+		params.filter = argv[7];
 
 	std::cout << "pcap file: " << input_path << std::endl;
 	std::cout << "payload file: " << output_path << std::endl;
@@ -77,24 +80,19 @@ int main(int argc, char* argv[])
 	std::cout << "payload packaging: " << (container ? "true" : "false") << std::endl << std::endl;
 
 	try {
-
-		bool succ = read_pcap(input_path, params);
-		if (!succ)
+		if (!read_pcap(input_path, params))
 			return 1;
 		std::cout << "Found " << params.srtp_stream.size() << " RTP packets (ssrc: 0x" << std::hex << params.ssrc << ")" << std::dec << std::endl;
 
-
 		SrtpSession srtp_decoder;
 		srtp_decoder.Init();
-		bool ret;
 		uint8_t recv_key[SRTP_MASTER_KEY_LEN];
-		ret = ParseKeyParams(keyBase64, recv_key, sizeof(recv_key));
-		if (ret) {
-			ret = srtp_decoder.SetRecv(
+		bool res = ParseKeyParams(keyBase64, recv_key, sizeof(recv_key));
+		if (res) {
+			res = srtp_decoder.SetRecv(
 				SrtpCryptoSuiteFromName(sha), recv_key,
 				sizeof(recv_key));
 		}
-
 
 		std::ofstream payload_file(output_path.c_str(), std::ofstream::out | std::ofstream::binary);
 
@@ -103,7 +101,6 @@ int main(int argc, char* argv[])
 
 		for (srtp_packets_t::iterator i = params.srtp_stream.begin(), lim = params.srtp_stream.end(); i != lim; i++)
 		{
-
 			int rtp_length = 0;
 			unsigned char* srtp_buffer = i->data();
 			int length = i->size();
@@ -157,9 +154,8 @@ int main(int argc, char* argv[])
 //			std::cout << count << " frame size: " << frame_size << std::endl;
 		}
 		payload_file.close();
-		std::cout << "Wrote " << count << " payload chunks " << std::endl;
+		std::cout << "Wrote " << count << " payload chunks" << std::endl << std::endl;
 		srtp_decoder.Terminate();
-
 	}
 	catch (std::exception const& err) {
 		std::cerr << "Terminate: " << err.what() << std::endl;
