@@ -1,0 +1,6 @@
+[submodule "docopt"]
+	path = docopt
+	url = git@github.com:docopt/docopt.cpp.git
+[submodule "libsrtp"]
+	path = libsrtp
+	url = git@github.com:cisco/libsrtp.git

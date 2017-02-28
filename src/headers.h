@@ -1,12 +1,13 @@
-
 #pragma once
 
 #include <stdint.h>
 #include <vector>
+#include <map>
 #include <memory>
 #include <list>
 #include <functional>
 #include <iostream>
+
 #include "pcap.h"
 
 #ifdef __linux__ 
@@ -14,22 +15,27 @@
 #	include <arpa/inet.h>
 #endif
 
+#define SIZE_ETHERNET 14
+
+// Experimental feature, need to be verified
+#define DETECT_ALL_RTP_STREAMS
+
 /* 4 bytes IP address */
-typedef struct ip_address
+struct ip_address
 {
 	u_char byte1;
 	u_char byte2;
 	u_char byte3;
 	u_char byte4;
-}ip_address;
+};
 
 /* IPv4 header */
-typedef struct ip_header
+struct ip_header
 {
 	u_char	ver_ihl;		// Version (4 bits) + Internet header length (4 bits)
 	u_char	tos;			// Type of service 
 	u_short tlen;			// Total length 
-	u_short identification; // Identification
+	u_short identification;	// Identification
 	u_short flags_fo;		// Flags (3 bits) + Fragment offset (13 bits)
 	u_char	ttl;			// Time to live
 	u_char	proto;			// Protocol
@@ -37,52 +43,104 @@ typedef struct ip_header
 	ip_address	saddr;		// Source address
 	ip_address	daddr;		// Destination address
 	u_int	op_pad;			// Option + Padding
-}ip_header;
+};
+
+#define IP_HL(ip)		(((ip)->ver_ihl) & 0x0f)
+#define IP_V(ip)		(((ip)->ver_ihl) >> 4)
+
+#ifndef IPPROTO_UDP
+#	define IPPROTO_UDP (17)
+#endif
+#ifndef IPPROTO_TCP
+#	define IPPROTO_TCP (6)
+#endif
 
 /* UDP header*/
-typedef struct udp_header
+struct udp_header
 {
 	u_short sport;			// Source port
 	u_short dport;			// Destination port
 	u_short len;			// Datagram length
 	u_short crc;			// Checksum
-}udp_header;
+};
+
+#define UDP_HEADER_SIZE 8
+
+using tcp_seq = uint32_t;
+/* TCP Header structure as per RFC 793 */
+struct tcp_header
+{
+	u_short sport;			/* source port */
+	u_short dport;			/* destination port */
+	tcp_seq seq;			/* sequence number */
+	tcp_seq ack;			/* acknowledgement number */
+	u_char data_offset;
+	u_char flags;
+	u_short win;			/* window */
+	u_short sum;			/* checksum */
+	u_short urp;			/* urgent pointer */
+};
+
+#define TH_OFF(th)  (((th)->data_offset & 0xf0) >> 4)
+
+// RTCP Header
+struct rtcp_report_hdr {
+	unsigned char rc : 5;	/* reception report count */
+	unsigned char p : 1;	/* padding flag           */
+	unsigned char version : 2; /* protocol version    */
+	unsigned char pt;		/* packet type            */
+	uint16_t length;		/* length                 */
+	uint32_t ssrc;			/* synchronization source */
+};
+
+#define RTCP_SR_REPORT (200)
+#define RTCP_RR_REPORT (201)
+#define RTCP_SDES_REPORT (202)
 
 /* RTP Header*/
-typedef struct {
+struct common_rtp_hdr_t {
 	unsigned char cc : 4;	/* CSRC count             */
 	unsigned char x : 1;	/* header extension flag  */
 	unsigned char p : 1;	/* padding flag           */
 	unsigned char version : 2; /* protocol version    */
 	unsigned char pt : 7;	/* payload type           */
 	unsigned char m : 1;	/* marker bit             */
-	uint16_t seq;		/* sequence number        */
-	uint32_t ts;		/* timestamp              */
-	uint32_t ssrc;	/* synchronization source */
-} common_rtp_hdr_t;
-
+	uint16_t seq;			/* sequence number        */
+	uint32_t ts;			/* timestamp              */
+	uint32_t ssrc;			/* synchronization source */
+};
 
 /* RTP Header Extension*/
-typedef struct {
+struct common_rtp_hdr_ex_t {
 	uint16_t defined_by_profile;
 	uint16_t extension_len;
-} common_rtp_hdr_ex_t;
+};
 
 /* RTP RFC5285 Header Extension*/
-typedef struct {
+struct rtp_hdr_ex5285_t {
 	unsigned char id : 4;
 	unsigned char extension_len : 4;
-} rtp_hdr_ex5285_t;
+};
 
+/* STUN Message Header */
+struct stun_header {
+	uint16_t msg_type;
+	uint16_t msg_length;
+	uint32_t magic_cookie;
+	u_char transaction_id[12];
+};
 
-/* Turn Channel Dta Header*/
-typedef struct {
+/* Turn Message 'ChannelData' Header */
+struct channel_data_header {
 	uint16_t channel_number;
 	uint16_t message_size;
-} channel_data_header;
+};
 
+#define STUN_CHANNEL_HEADER_SIZE 4
+#define STUN_HEADER_SIZE 20
+#define STUN_MAGIC_COOKIE 0x2112a442
 
-struct	ether_header {
+struct ether_header {
 	u_char	ether_dhost[6];
 	u_char	ether_shost[6];
 	u_short	ether_type;
@@ -162,9 +220,46 @@ struct	ether_header {
 typedef std::vector<unsigned char> srtp_packet_t;
 typedef std::list<srtp_packet_t> srtp_packets_t;
 
+struct rtp_info
+{
+	rtp_info(uint32_t assrc, unsigned char payload, time_t t)
+		: ssrc(assrc), pt(payload), first_ts(t), last_ts(t), packets(1)
+	{
+	}
+	
+	bool udp { true };
+
+	ip_address src_addr;
+	uint16_t src_port { 0 };
+	ip_address dst_addr;
+	uint16_t dst_port { 0 };
+
+	uint32_t ssrc { 0 };
+	unsigned char pt { 0 };
+
+	time_t first_ts { 0 };
+	time_t last_ts { 0 };
+
+	uint32_t packets { 0 };
+};
+
+// RTP info map: key is SSRC
+using streams = std::map<uint32_t, rtp_info>;
 
 struct global_params
 {
+	std::string filter;
 	srtp_packets_t srtp_stream;
-	long ssrc;
+
+	bool verbose {false};
+	bool collect_rtp_streams {false};
+
+	// rtp info
+	uint32_t ssrc {0};
+	uint16_t seq {0};
+	time_t first_ts {0};
+	time_t last_ts {0};
+
+	streams all_streams_info;
 };
+

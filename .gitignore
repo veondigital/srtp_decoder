@@ -1,0 +1,23 @@
+# auto-generated file
+src/srtp_decoder.h
+
+# Generated makefiles
+.build/
+.usr/
+build/
+
+# Some produced files
+tests/*.log
+tests/*.opus
+tests/*.pcm
+tests/*.pcma
+tests/*.csv
+
+# Visual Studio 2015 files
+win32_vs15/.vs
+win32_vs15/srtp_decoder.VC.*
+win32_vs15/Debug
+win32_vs15/Release
+
+# WipPcap files from archive
+WpdPack

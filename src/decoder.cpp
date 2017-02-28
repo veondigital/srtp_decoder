@@ -17,7 +17,7 @@
 #endif
 
 //const int SRTP_MASTER_KEY_BASE64_LEN = SRTP_MASTER_KEY_LEN * 4 / 3;
-const int SRTP_MASTER_KEY_KEY_LEN = 16;
+//const int SRTP_MASTER_KEY_KEY_LEN = 16;
 int SRTP_MASTER_KEY_SALT_LEN = 14;
 
 	SrtpSession::SrtpSession()
