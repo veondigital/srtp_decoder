@@ -24,7 +24,7 @@ bool is_ip_over_eth(const u_char* packet)
 /* Callback function invoked by libpcap for every incoming packet */
 void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pkt_data)
 {
-	global_params* params = reinterpret_cast<global_params*>(param);
+	global_params *params = reinterpret_cast<global_params*>(param);
 
 	struct tm *ltime;
 	char timestr[16];
@@ -41,6 +41,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	u_int const turn_hdr_size = 4;
 	u_int tcp_data_size = 0;
 	u_int udp_size = 0;
+	u_int data_size = 0;
 
 	/*
 	* unused parameter
@@ -73,9 +74,10 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 			ih->daddr.byte1, ih->daddr.byte2, ih->daddr.byte3, ih->daddr.byte4, ntohs(uh->dport),
 			header->len);
 #endif
-		udp_size = ntohs(uh->len);
+		udp_size = ntohs(uh->len);	// udp_size = header size(8) + data size
 		turn_body = (char *)uh + udp_hdr_size;
-		printf("eth: %d, ip: %d, udp: %d, turn: %d\n", eth_hdr_size, ip_hdr_size, udp_size, udp_size - udp_hdr_size);
+		data_size = udp_size - udp_hdr_size;
+		printf("eth: %d, ip: %d, udp: %d, data: %d\n", eth_hdr_size, ip_hdr_size, udp_hdr_size, data_size);
 		//assert(header->len == eth_hdr_size+ip_hdr_size+udp_size);
 		break;
 
@@ -93,11 +95,9 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		tcp_hdr_size = TH_OFF(th) * 4;
 		tcp_data_size = header->len - (eth_hdr_size + ip_hdr_size + tcp_hdr_size);
 		turn_body = (char *)th + tcp_hdr_size;
-		printf("eth: %d, ip: %d, tcp: %d, turn: %d\n", eth_hdr_size, ip_hdr_size, tcp_hdr_size, tcp_data_size);
+		data_size = tcp_data_size;
+		printf("eth: %d, ip: %d, tcp: %d, data: %d\n", eth_hdr_size, ip_hdr_size, tcp_hdr_size, data_size);
 		//assert(header->len == eth_hdr_size+ip_hdr_size+tcp_hdr_size+tcp_data_size);
-		if (tcp_data_size <= 4) {
-			return;
-		}
 		break;
 
 	default:
@@ -105,57 +105,96 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	}
 
 	assert(turn_body);
-	channel_data_header *turn_hdr = (channel_data_header *)turn_body;
 
-	int   rtp_size = 0;
-	char *rtp_body = 0;
-
-	uint8_t channel_mask = static_cast<uint8_t>(turn_hdr->channel_number);
-	if (channel_mask == 0x40)
-	{
-		if (udp_size) {
-			rtp_size = udp_size - udp_hdr_size - turn_hdr_size;
-			rtp_body = (char*)uh + udp_hdr_size + turn_hdr_size;
-		} else if (tcp_data_size) {
-			rtp_size = tcp_data_size - turn_hdr_size;
-			rtp_body = (char*)th + tcp_hdr_size + turn_hdr_size;
-		} else {
-			assert(0);
-			return;
-		}
-		printf("eth: %d, ip: %d, tcp: %d, turn: %d, rtp: %d\n", eth_hdr_size, ip_hdr_size, tcp_hdr_size, ntohs(turn_hdr->message_size), rtp_size);
-		//assert(rtp_size == ntohs(turn_hdr->message_size));
-	}
-	else if (udp_size)
-	{
-		rtp_size = udp_size - udp_hdr_size;
-		rtp_body = (char*)uh + udp_hdr_size;
-		printf("rtp: %d\n", rtp_size);
-	}
-	else
-	{
-		return;
-	}
-
-	common_rtp_hdr_t *hdr = (common_rtp_hdr_t *)rtp_body;
-	bool is_rtp = hdr->version == 2;
-
-	if (is_rtp)
-	{
-		if (params->ssrc == ntohl(hdr->ssrc))
+	auto parse_rtp =
+		[]
+		(char *rtp_body, int rtp_size, global_params *params)
 		{
-			srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
-			params->srtp_stream.push_back(srtp_packet);
-			printf("rtp: ssrc: 0x%x, seq: %d found\n", ntohl(hdr->ssrc), ntohs(hdr->seq));
+			auto *hdr = reinterpret_cast<common_rtp_hdr_t *>(rtp_body);
+
+			if (hdr->version == 2)
+			{
+#ifdef _DEBUG
+				printf("rtp: head, size: %d\n", rtp_size);
+				printf("\tversion=%d\n", hdr->version);
+				printf("\tpadding=%d\n", hdr->p);
+				printf("\text=%d\n", hdr->x);
+				printf("\tcc=%d\n", hdr->cc);
+				printf("\tpt=%d\n", hdr->pt);
+				printf("\tm=%d\n", hdr->m);
+				printf("\tseq=%d\n", htons(hdr->seq));
+				printf("\tts=%d\n", htonl(hdr->ts));
+				printf("\tssrc=0x%x\n", htonl(hdr->ssrc));
+#endif
+				if (params->ssrc == ntohl(hdr->ssrc))
+				{
+					auto seq = htons(hdr->seq);
+					if (params->seq + 1 != seq)
+						printf("rtp: lost packet detected: %d - %d\n", params->seq, seq);
+					params->seq = seq;
+					srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
+					params->srtp_stream.push_back(srtp_packet);
+				}
+				else
+				{
+					printf("rtp: alien ssrc=0x%x\n", htonl(hdr->ssrc));
+				}
+			}
+			else
+			{
+				printf("rtp: non-head, size: %d\n", rtp_size);
+			}
+			printf("\n");
+		};
+
+	char *rtp_body = 0;
+	int   rtp_size = 0;
+
+	for (;data_size > turn_hdr_size; data_size -= (rtp_size + turn_hdr_size), turn_body += (rtp_size + turn_hdr_size))
+	{
+		printf("data size: %d\n", data_size);
+
+		// check if ChannelData message
+		auto turn_hdr = reinterpret_cast<const channel_data_header *>(turn_body);
+		auto channel_mask = static_cast<uint8_t>(turn_hdr->channel_number);
+
+		if (channel_mask == 0x40)
+		{
+			//FIXME: turn lies(!) into ChannelData.MessageLength, we need make value to be multiple 4
+			rtp_size = (htons(turn_hdr->message_size) + 3) >> 2 << 2;
+			rtp_body = (char*)turn_body + turn_hdr_size;
+
+			parse_rtp(rtp_body, rtp_size, params);
 		}
 		else
 		{
-			printf("rtp: ssrc: 0x%x, seq: %d ignored\n", ntohl(hdr->ssrc), ntohs(hdr->seq));
-		}
-	}
+			if (udp_size)
+			{
+				rtp_size = udp_size - udp_hdr_size;
+				rtp_body = (char*)uh + udp_hdr_size;
 
-	// TO DO RTCP
-	// Oy vey iz mir https://tools.ietf.org/html/rfc5761#page-4 
+				parse_rtp(rtp_body, rtp_size, params);
+			}
+			else
+			{
+				// really it may be TURN-message without rtp data (if) or unknown message (else)
+				uint32_t magic_cookie = htonl(*(reinterpret_cast<uint32_t *>(rtp_body)));
+				printf("stun: magic cookie: 0x%x\n", magic_cookie);
+				if (magic_cookie == 0x2112a442)
+				{
+					printf("stun: message %d bytes skipped\n", rtp_size);
+					rtp_size = (htons(turn_hdr->message_size));
+					turn_hdr_size = 20;
+				}
+				else
+				{
+					printf("unknown: message skipped\n");
+					return;
+				}
+			}
+		}
+		printf("rest of data size: %d\n\n", data_size - rtp_size - turn_hdr_size);
+	}
 }
 
 bool read_pcap(std::string const& file, global_params& params)

@@ -86,7 +86,7 @@ typedef struct {
 	unsigned char m : 1;	/* marker bit             */
 	uint16_t seq;		/* sequence number        */
 	uint32_t ts;		/* timestamp              */
-	uint32_t ssrc;	/* synchronization source */
+	uint32_t ssrc;		/* synchronization source */
 } common_rtp_hdr_t;
 
 
@@ -193,7 +193,12 @@ typedef std::list<srtp_packet_t> srtp_packets_t;
 
 struct global_params
 {
-	srtp_packets_t srtp_stream;
-	long ssrc;
 	std::string filter;
+	srtp_packets_t srtp_stream;
+
+	// rtp info
+	uint32_t ssrc{0};
+	uint16_t seq{0};
+	uint32_t first_ts{0};
+	uint32_t last_ts{0};
 };
