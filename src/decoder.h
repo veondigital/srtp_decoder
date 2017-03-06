@@ -8,7 +8,7 @@
 #else
 #include "srtp2/srtp.h"
 #endif
-#include "err.h"
+//#include "err.h"
 
 
 // Constants for SRTP profiles.

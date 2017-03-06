@@ -17,9 +17,8 @@ bool ParseKeyParams(const std::string& key_params, uint8_t* key, int len) {
 
 	// Fail if base64 decode fails, or the key is the wrong size.
 	std::string key_b64(key_params), key_str;
-	if (!Base64::Decode(key_b64, Base64::DO_STRICT,
-		&key_str, NULL) ||
-		static_cast<int>(key_str.size()) != len) {
+	if (!Base64::Decode(key_b64, Base64::DO_STRICT, &key_str, NULL) ||
+			static_cast<int>(key_str.size()) != len) {
 		std::cerr << "ERROR: Bad master key encoding, cant unbase64" << std::endl;
 		throw std::runtime_error("SRTP fails");
 		return false;
@@ -67,9 +66,13 @@ int main(int argc, char* argv[])
 	std::string sha = argv[5];
 	params.ssrc = strtoul(ssrc_str.c_str(), 0, 16);
 	bool container = std::string(argv[6]) == std::string("true");
-	//FIXME
+	bool show_all_streams_info = false;
+	//FIXME: filter flag
 	if (argc > 7)
 		params.filter = argv[7];
+	//FIXME: show info flag
+	if (argc > 8)
+		show_all_streams_info = std::string(argv[8]) == std::string("true");
 
 	std::cout << "pcap file: " << input_path << std::endl;
 	std::cout << "payload file: " << output_path << std::endl;
@@ -79,8 +82,18 @@ int main(int argc, char* argv[])
 	std::cout << "payload packaging: " << (container ? "true" : "false") << std::endl << std::endl;
 
 	try {
-		if (!read_pcap(input_path, params))
+		if (!read_pcap(input_path, params)) {
 			return 1;
+		}
+		//FIXME
+		if (show_all_streams_info) {
+			std::cout << "===" << std::endl;
+			for (auto ri : params.all_streams_info) {
+				printf("Found %d packets for ssrc: 0x%x, first ts: %u, last_ts: %u\n",
+					ri.second.packets, ri.second.ssrc, ri.second.first_ts, ri.second.last_ts);
+			}
+			std::cout << "===" << std::endl;
+		}
 		std::cout << "Found " << params.srtp_stream.size() << " RTP packets (ssrc: 0x" << std::hex << params.ssrc << ")" << std::dec << std::endl;
 
 		SrtpSession srtp_decoder;
@@ -88,9 +101,7 @@ int main(int argc, char* argv[])
 		uint8_t recv_key[SRTP_MASTER_KEY_LEN];
 		bool res = ParseKeyParams(keyBase64, recv_key, sizeof(recv_key));
 		if (res) {
-			res = srtp_decoder.SetRecv(
-				SrtpCryptoSuiteFromName(sha), recv_key,
-				sizeof(recv_key));
+			res = srtp_decoder.SetRecv(SrtpCryptoSuiteFromName(sha), recv_key, sizeof(recv_key));
 		}
 
 		std::ofstream payload_file(output_path.c_str(), std::ofstream::out | std::ofstream::binary);
@@ -105,7 +116,8 @@ int main(int argc, char* argv[])
 			int length = i->size();
 			bool suc = srtp_decoder.UnprotectRtp(srtp_buffer, length, &rtp_length);
 			if (!suc)
-				std::cerr << "can't decrypt packet" << std::endl;
+				std::cerr << " - can't decrypt packet" << std::endl;
+			
 			common_rtp_hdr_t *hdr = (common_rtp_hdr_t *)srtp_buffer;
 			int rtp_header_size = sizeof(common_rtp_hdr_t);
 			unsigned char* payload = srtp_buffer + rtp_header_size;
@@ -138,17 +150,16 @@ int main(int argc, char* argv[])
 			count++;
 			size_t frame_size = rtp_length - rtp_header_size;
 
-
-				if (container)
-				{
-					unsigned char sz[4];
-					int_to_char(frame_size, sz);
-					payload_file.write(reinterpret_cast<char*>(&sz[0]), 4);
-					int_to_char(0, sz);
-					payload_file.write(reinterpret_cast<char*>(&sz[0]), 4);
-				}
-				// The array may contain null characters, which are also copied without stopping the copying process.
-				payload_file.write(reinterpret_cast<char*>(payload), frame_size);
+			if (container)
+			{
+				unsigned char sz[4];
+				int_to_char(frame_size, sz);
+				payload_file.write(reinterpret_cast<char*>(&sz[0]), 4);
+				int_to_char(0, sz);
+				payload_file.write(reinterpret_cast<char*>(&sz[0]), 4);
+			}
+			// The array may contain null characters, which are also copied without stopping the copying process.
+			payload_file.write(reinterpret_cast<char*>(payload), frame_size);
 
 //			std::cout << count << " frame size: " << frame_size << std::endl;
 		}
