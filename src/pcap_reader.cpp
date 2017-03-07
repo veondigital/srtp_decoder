@@ -1,10 +1,18 @@
 #include "pcap_reader.h"
 #include <cassert>
 
-#ifndef WIN32
 //FIXME
+#ifndef WIN32
 # define _DEBUG
 #endif
+
+template<typename... Ts>
+void dbg_printf(const Ts&... args)
+{
+#ifdef _DEBUG
+    printf(args...);
+#endif
+}
 
 bool is_ip_over_eth(const u_char* packet)
 {
@@ -46,9 +54,9 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	u_int udp_size = 0;
 	u_int data_size = 0;
 
-	/* unused parameter	*/
+	/* unused parameter */
 	(void)(param);
-	
+
 	++pack_no;
 
 	/* convert the timestamp to readable format */
@@ -61,7 +69,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 
 	eth_hdr_size = is_ip_over_eth(pkt_data) ? SIZE_ETHERNET : 0;
 
-	/* retireve the position of the ip header */
+	/* retrieve the position of the ip header */
 	ih = (ip_header *)(pkt_data + eth_hdr_size);
 	ip_hdr_size = IP_HL(ih) * 4;
 
@@ -70,8 +78,8 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	case IPPROTO_UDP:
 		/* retireve the position of the udp header */
 		uh = (udp_header *)((u_char*)ih + ip_hdr_size);
-#ifdef _DEBUG
 		/* print ip addresses and udp ports */
+#ifdef _DEBUG
 		printf("[%d] UDP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
 			pack_no, timestr, header->ts.tv_usec,
 			ih->saddr.byte1, ih->saddr.byte2, ih->saddr.byte3, ih->saddr.byte4, ntohs(uh->sport),
@@ -84,14 +92,13 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 #ifdef _DEBUG
 		printf("size: eth: %d, ip: %d, udp: %d, data: %d\n", eth_hdr_size, ip_hdr_size, udp_hdr_size, data_size);
 #endif
-		//assert(header->len == eth_hdr_size+ip_hdr_size+udp_size);
 		break;
 
 	case IPPROTO_TCP:
 		/* retireve the position of the tcp header */
 		th = (tcp_header *)((u_char*)ih + ip_hdr_size);
-#ifdef _DEBUG
 		/* print ip addresses and tcp ports */
+#ifdef _DEBUG
 		printf("[%d] TCP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
 			pack_no, timestr, header->ts.tv_usec,
 			ih->saddr.byte1, ih->saddr.byte2, ih->saddr.byte3, ih->saddr.byte4, ntohs(th->sport),
@@ -105,7 +112,6 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 #ifdef _DEBUG
 		printf("size: eth: %d, ip: %d, tcp: %d, data: %d\n", eth_hdr_size, ip_hdr_size, tcp_hdr_size, data_size);
 #endif
-		//assert(header->len == eth_hdr_size+ip_hdr_size+tcp_hdr_size+tcp_data_size);
 		break;
 
 	default:
@@ -120,28 +126,22 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		{
 			auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
 			auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
-			auto stun_hdr = reinterpret_cast<const stun_header *>(rtp_body);
 
-			//FIXME: there are many of non-RTP protocols, it isn't enough to detect RTP by version only
+			//TODO: there are many of non-RTP protocols, it isn't enough to detect RTP by version only
 			if (hdr->version == 2) {
 				if (rtcp_hdr->pt == RTCP_SR_REPORT || rtcp_hdr->pt == RTCP_RR_REPORT) {
 					//if (params->ssrc == ntohl(rtcp_hdr->ssrc)) {
 					//	printf("skip rtcp report\n");
 					//}
+#ifdef _DEBUG
 					printf("skip rtcp report\n\n");
+#endif
 					return;
 				}
 #ifdef _DEBUG
 				printf("rtp: head, size: %d\n", rtp_size);
-				printf("\tversion=%d\n", hdr->version);
-				printf("\tpadding=%d\n", hdr->p);
-				printf("\text=%d\n", hdr->x);
-				printf("\tcc=%d\n", hdr->cc);
-				printf("\tpt=%d\n", hdr->pt);
-				printf("\tm=%d\n", hdr->m);
-				printf("\tseq=%d\n", htons(hdr->seq));
-				printf("\tts=%d\n", htonl(hdr->ts));
-				printf("\tssrc=0x%x\n", htonl(hdr->ssrc));
+				printf("\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
+					hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
 #endif
 				if (params->ssrc == ntohl(hdr->ssrc)) {
 					auto seq = htons(hdr->seq);
@@ -149,11 +149,13 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 						printf("rtp: lost packet detected: %d - %d\n", params->seq, seq);
 					}
 					params->seq = seq;
+
 					srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
 					params->srtp_stream.push_back(srtp_packet);
-				}
-				else {
+#ifdef _DEBUG
+				} else {
 					printf("rtp: alien ssrc=0x%x\n", htonl(hdr->ssrc));
+#endif
 				}
 
 				streams::iterator itr = params->all_streams_info.find(htonl(hdr->ssrc));
@@ -164,13 +166,14 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 					itr->second.last_ts = htonl(hdr->ts);
 					++itr->second.packets;
 				}
-			} else if (htonl(stun_hdr->magic_cookie) == 0x2112a442) {
-				// (6)
-				printf("stun: message skipped\n");
+#ifdef _DEBUG
 			} else {
 				printf("udp: unknown, size: %d\n", rtp_size);
+#endif
 			}
+#ifdef _DEBUG
 			printf("\n");
+#endif
 		};
 
 	char *rtp_body = 0;
@@ -192,10 +195,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	// 2.4. Something else (8)
 	for (;data_size > turn_hdr_size; data_size -= (rtp_size + turn_hdr_size), turn_head += (rtp_size + turn_hdr_size))
 	{
-		if (udp_size)
-			printf("data size: %d\n", udp_size);
-		else
-			printf("data size: %d\n", data_size);
+		printf("data size: %d\n", udp_size ? udp_size : data_size);
 
 		// check if ChannelData message
 		auto turn_hdr = reinterpret_cast<const channel_data_header *>(turn_head);
@@ -204,20 +204,21 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		if (channel_mask == 0x40) {
 			// (1), (4), (5)
 			//A.D. FIXME: turn lies (I saw it into TCP-dumps) into ChannelData.MessageLength, we need make value to be multiple 4
-			rtp_size = (htons(turn_hdr->message_size) + 3) >> 2 << 2;
+			//rtp_size = (htons(turn_hdr->message_size) + 3) >> 2 << 2;
+			rtp_size = htons(turn_hdr->message_size);
 			rtp_body = (char *)turn_head + turn_hdr_size;
 
 			parse_rtp(rtp_body, rtp_size);
 		} else {
 			if (udp_size) {
-				// (2), (3)
+				// UDP: (2), (3)
 				rtp_size = udp_size;
 				rtp_body = (char *)turn_head;
 
 				parse_rtp(rtp_body, rtp_size);
 				return;
 			} else {
-				// really it may be TURN-message (if) or unknown message (else)
+				// TCP: really it may be TURN-message (if) or unknown message (else)
 				rtp_size = htons(turn_hdr->message_size);
 				rtp_body = (char*)turn_head + turn_hdr_size;
 
@@ -225,11 +226,15 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 				//printf("stun: magic cookie: 0x%x\n", magic_cookie);
 				if (magic_cookie == 0x2112a442) {
 					// (6)
+#ifdef _DEBUG
 					printf("stun: message %d bytes skipped\n", rtp_size);
+#endif
 					rtp_size += 16;
 				} else {
 					// (7)
+#ifdef _DEBUG
 					printf("unknown: message skipped\n");
+#endif
 					return;
 				}
 			}
@@ -251,7 +256,7 @@ bool read_pcap(std::string const& file, global_params& params)
 		return false;
 	}
 
-	std::string packet_filter = params.filter.empty() ? "udp" : params.filter;
+	std::string packet_filter = params.filter.empty() ? "udp or tcp" : params.filter;
 	u_int netmask = 0xffffff;
 
 	//compile the filter

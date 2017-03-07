@@ -66,13 +66,13 @@ int main(int argc, char* argv[])
 	std::string sha = argv[5];
 	params.ssrc = strtoul(ssrc_str.c_str(), 0, 16);
 	bool container = std::string(argv[6]) == std::string("true");
-	bool show_all_streams_info = false;
+	bool show_all_streams_info = true;
 	//FIXME: filter flag
 	if (argc > 7)
 		params.filter = argv[7];
 	//FIXME: show info flag
-	if (argc > 8)
-		show_all_streams_info = std::string(argv[8]) == std::string("true");
+//	if (argc > 8)
+//		show_all_streams_info = std::string(argv[8]) == std::string("true");
 
 	std::cout << "pcap file: " << input_path << std::endl;
 	std::cout << "payload file: " << output_path << std::endl;
