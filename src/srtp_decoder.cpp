@@ -1,12 +1,16 @@
 // srtp_decoder.cpp : Defines the entry point for the console application.
 //
 
+
 #include "decoder.h"
 #include "base64.h"
 #include "pcap.h"
+
 #include <string>
 #include <iostream>
 #include <cassert>
+
+#include "docopt/docopt.h"
 
 #include "pcap_reader.h"
 
@@ -44,57 +48,76 @@ static void int_to_char(unsigned int i, unsigned char ch[4])
 	ch[3] = i & 0xFF;
 }
 
+static const char VERSION[] = "SRTP decoder 1.06";
+static const char USAGE[] =
+R"(srtp_decoder
+
+    Usage:
+        srtp_decoder [-vl] <input_tcpdump_pcap_path> <output_decoded_payload_path> <ssrc_into_rtp_hex_format> <Base64_master_key> <sha_Crypto_Suite> <container>
+        srtp_decoder (-h | --help)
+        srtp_decoder --version
+
+    Options:
+        -l --list     Show all rtp streams information.
+        -v --verbose  Verbose output.
+        -h --help     Show this screen.
+        --version     Show version.
+
+    Examples:
+        srtp_decoder ./tests/pcma.pcap ./tests/pcma.paylaod 0xdeadbeef aSBrbm93IGFsbCB5b3VyIGxpdHRsZSBzZWNyZXRz AES_CM_128_HMAC_SHA1_80 false
+        srtp_decoder ./tests/webrtc_opus_p2p.pcap ./tests/output/webrtc_opus_p2p.payload 0x20C23467 FfLxRxclZ/lNM/g5MNSZgmvAUzR/pgSIVyOHUHji AES_CM_128_HMAC_SHA1_80 true
+)";
+
 int main(int argc, char* argv[])
 {
-	std::cout << "SRTP decoder Version 1.06" << std::endl;
-
-	if (argc < 7) {
-		std::cerr << "ERROR: Bad arguments:" << std::endl;
-		std::cout << "Usage: srtp_decoder[.exe] input_tcpdump_pcap_path output_decoded_payload_path ssrc_rtp_hex_format Base64_master_key sha_Crypto_Suite container[true/false]" << std::endl;
-		std::cout << "Examples: "
-			<< std::endl << "srtp_decoder ./tests/pcma.pcap ./tests/pcma.paylaod 0xdeadbeef aSBrbm93IGFsbCB5b3VyIGxpdHRsZSBzZWNyZXRz AES_CM_128_HMAC_SHA1_80 false" \
-			<< std::endl << "srtp_decoder ./tests/webrtc_opus_p2p.pcap ./tests/output/webrtc_opus_p2p.payload 0x20C23467 FfLxRxclZ/lNM/g5MNSZgmvAUzR/pgSIVyOHUHji AES_CM_128_HMAC_SHA1_80 true" << std::endl;
-		return 1;
+	std::map<std::string, docopt::value> args = docopt::docopt(USAGE, { argv + 1, argv + argc }, true, VERSION);
+#ifdef _DEBUG
+	for (auto const& arg : args) {
+		std::cout << arg.first << ": " << arg.second << std::endl;
 	}
-
+#endif
 	global_params params;
+	params.filter = "udp or tcp";
+	params.verbose = false;
 
-	std::string input_path = argv[1];
-	std::string output_path = argv[2];
-	std::string ssrc_str = argv[3];
-	std::string keyBase64 = argv[4];
-	std::string sha = argv[5];
+	std::string input_path = args["<input_tcpdump_pcap_path>"].asString();
+	std::string output_path = args["<output_decoded_payload_path>"].asString();
+	std::string ssrc_str = args["<ssrc_into_rtp_hex_format>"].asString();
+	std::string keyBase64 = args["<Base64_master_key>"].asString();
+	std::string sha = args["<sha_Crypto_Suite>"].asString();
 	params.ssrc = strtoul(ssrc_str.c_str(), 0, 16);
-	bool container = std::string(argv[6]) == std::string("true");
-	bool show_all_streams_info = true;
-	//FIXME: filter flag
-	if (argc > 7)
-		params.filter = argv[7];
-	//FIXME: show info flag
-//	if (argc > 8)
-//		show_all_streams_info = std::string(argv[8]) == std::string("true");
+	bool container = args["<container>"].asString() == std::string("true");
+	bool show_all_streams_info = args["--list"].asBool();
+	if (args["<filter>"])
+		params.filter = args["<filter>"].asString();
+	if (args["--verbose"])
+		params.verbose = args["--verbose"].asBool();
 
 	std::cout << "pcap file: " << input_path << std::endl;
 	std::cout << "payload file: " << output_path << std::endl;
 	std::cout << "32-bit SSRC identifier: 0x" << std::hex << params.ssrc << std::dec << std::endl;
 	std::cout << "AES Base64 crypto key: " << keyBase64 << std::endl;
 	std::cout << "crypto-suite: " << sha << std::endl;
-	std::cout << "payload packaging: " << (container ? "true" : "false") << std::endl << std::endl;
+	std::cout << "payload packaging: " << (container ? "true" : "false") << std::endl;
+	std::cout << "tcpdump filter expression: " << params.filter << std::endl;
+	std::cout << std::endl;
 
 	try {
 		if (!read_pcap(input_path, params)) {
 			return 1;
 		}
-		//FIXME
+#ifdef DETECT_ALL_RTP_STREAMS
 		if (show_all_streams_info) {
-			std::cout << "===" << std::endl;
+			std::cout << "=== RTP STREAMS INFO ===" << std::endl;
 			for (auto ri : params.all_streams_info) {
-				printf("Found %d packets for ssrc: 0x%x, first ts: %u, last_ts: %u\n",
+				printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
 					ri.second.packets, ri.second.ssrc, ri.second.first_ts, ri.second.last_ts);
 			}
-			std::cout << "===" << std::endl;
+			std::cout << "=== RTP STREAMS INFO ===" << std::endl << std::endl;
 		}
-		std::cout << "Found " << params.srtp_stream.size() << " RTP packets (ssrc: 0x" << std::hex << params.ssrc << ")" << std::dec << std::endl;
+#endif
+		printf("Found %lu RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
+			params.srtp_stream.size(), params.ssrc, params.first_ts, params.last_ts);
 
 		SrtpSession srtp_decoder;
 		srtp_decoder.Init();

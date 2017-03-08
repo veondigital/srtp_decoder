@@ -1,18 +1,17 @@
 #include "pcap_reader.h"
 #include <cassert>
+#include <utility>
 
-//FIXME
-#ifndef WIN32
-# define _DEBUG
-#endif
-
-template<typename... Ts>
-void dbg_printf(const Ts&... args)
+// http://fuckingclangwarnings.com
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-security"
+template<typename... Args>
+void verbose(bool verbose, Args&&... args)
 {
-#ifdef _DEBUG
-    printf(args...);
-#endif
+	if (verbose)
+		printf(std::forward<Args&&>(args)...);
 }
+#pragma clang diagnostic pop
 
 bool is_ip_over_eth(const u_char* packet)
 {
@@ -60,8 +59,8 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	++pack_no;
 
 	/* convert the timestamp to readable format */
-	time_t const tm = header->ts.tv_sec;
-	ltime = localtime(&tm);
+	time_t const ts = header->ts.tv_sec;
+	ltime = localtime(&ts);
 	strftime(timestr, sizeof timestr, "%H:%M:%S", ltime);
 
 	/* print timestamp and length of the packet */
@@ -79,39 +78,31 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		/* retireve the position of the udp header */
 		uh = (udp_header *)((u_char*)ih + ip_hdr_size);
 		/* print ip addresses and udp ports */
-#ifdef _DEBUG
-		printf("[%d] UDP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
+		verbose(params->verbose, "[%d] UDP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
 			pack_no, timestr, header->ts.tv_usec,
 			ih->saddr.byte1, ih->saddr.byte2, ih->saddr.byte3, ih->saddr.byte4, ntohs(uh->sport),
 			ih->daddr.byte1, ih->daddr.byte2, ih->daddr.byte3, ih->daddr.byte4, ntohs(uh->dport),
 			header->len);
-#endif
 		udp_size = ntohs(uh->len);	// udp_size = header size(8) + data size
 		turn_head = (char *)uh + udp_hdr_size;
 		data_size = udp_size - udp_hdr_size;
-#ifdef _DEBUG
-		printf("size: eth: %d, ip: %d, udp: %d, data: %d\n", eth_hdr_size, ip_hdr_size, udp_hdr_size, data_size);
-#endif
+		verbose(params->verbose, "size: eth: %d, ip: %d, udp: %d, data: %d\n", eth_hdr_size, ip_hdr_size, udp_hdr_size, data_size);
 		break;
 
 	case IPPROTO_TCP:
 		/* retireve the position of the tcp header */
 		th = (tcp_header *)((u_char*)ih + ip_hdr_size);
 		/* print ip addresses and tcp ports */
-#ifdef _DEBUG
-		printf("[%d] TCP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
+		verbose(params->verbose, "[%d] TCP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
 			pack_no, timestr, header->ts.tv_usec,
 			ih->saddr.byte1, ih->saddr.byte2, ih->saddr.byte3, ih->saddr.byte4, ntohs(th->sport),
 			ih->daddr.byte1, ih->daddr.byte2, ih->daddr.byte3, ih->daddr.byte4, ntohs(th->dport),
 			header->len);
-#endif
 		tcp_hdr_size = TH_OFF(th) * 4;
 		tcp_data_size = header->len - (eth_hdr_size + ip_hdr_size + tcp_hdr_size);
 		turn_head = (char *)th + tcp_hdr_size;
 		data_size = tcp_data_size;
-#ifdef _DEBUG
-		printf("size: eth: %d, ip: %d, tcp: %d, data: %d\n", eth_hdr_size, ip_hdr_size, tcp_hdr_size, data_size);
-#endif
+		verbose(params->verbose, "size: eth: %d, ip: %d, tcp: %d, data: %d\n", eth_hdr_size, ip_hdr_size, tcp_hdr_size, data_size);
 		break;
 
 	default:
@@ -121,9 +112,8 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	assert(turn_head);
 
 	auto parse_rtp =
-		[header, params]
-		(char *rtp_body, int rtp_size)
-		{
+		[params, ts]
+		(char *rtp_body, int rtp_size) {
 			auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
 			auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
 
@@ -133,47 +123,59 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 					//if (params->ssrc == ntohl(rtcp_hdr->ssrc)) {
 					//	printf("skip rtcp report\n");
 					//}
-#ifdef _DEBUG
-					printf("skip rtcp report\n\n");
-#endif
+					verbose(params->verbose, "skip rtcp report\n\n");
 					return;
 				}
-#ifdef _DEBUG
-				printf("rtp: head, size: %d\n", rtp_size);
-				printf("\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
+
+				verbose(params->verbose, "rtp: head, size: %d\n", rtp_size);
+				verbose(params->verbose, "\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
 					hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
-#endif
-				if (params->ssrc == ntohl(hdr->ssrc)) {
-					auto seq = htons(hdr->seq);
-					if (params->seq + 1 != seq) {
-						printf("rtp: lost packet detected: %d - %d\n", params->seq, seq);
+
+				auto ssrc = ntohl(hdr->ssrc);
+				auto seq = htons(hdr->seq);
+				if (params->ssrc == ssrc) {
+					if (params->first_ts) {
+						if (seq != params->seq + 1) {
+							if (seq < params->seq) {
+								//both TCP and UDP
+								auto packs = params->seq - seq;
+								verbose(params->verbose, "rtp: reordered or retransmitted packet detected: %d (-%d)\n", seq, packs);
+								return;
+							} else if (seq == params->seq) {
+								//UDP only
+								verbose(params->verbose, "rtp: copy of packet detected: %d, skipped\n", seq);
+								return;
+							} else {
+								//UDP only
+								verbose(params->verbose, "rtp: lost packet(s) detected: %d - %d\n", params->seq, seq);
+							}
+						}
+					} else {
+						params->first_ts = ts;
 					}
+					params->last_ts = ts;
 					params->seq = seq;
 
 					srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
 					params->srtp_stream.push_back(srtp_packet);
-#ifdef _DEBUG
 				} else {
-					printf("rtp: alien ssrc=0x%x\n", htonl(hdr->ssrc));
-#endif
+					verbose(params->verbose, "rtp: alien ssrc=0x%x\n\n", ssrc);
 				}
-
-				streams::iterator itr = params->all_streams_info.find(htonl(hdr->ssrc));
+#ifdef DETECT_ALL_RTP_STREAMS
+				if (ssrc == 0) {
+					return;
+				}
+				streams::iterator itr = params->all_streams_info.find(ssrc);
 				if (itr == params->all_streams_info.end()) {
-					params->all_streams_info.insert(streams::value_type(htonl(hdr->ssrc), rtp_info(htonl(hdr->ssrc), htonl(hdr->ts), header->ts.tv_sec)));
-				}
-				else {
-					itr->second.last_ts = htonl(hdr->ts);
+					params->all_streams_info.insert(streams::value_type(ssrc, rtp_info(ssrc, ts)));
+				} else {
+					itr->second.last_ts = ts;
 					++itr->second.packets;
 				}
-#ifdef _DEBUG
+#endif
 			} else {
-				printf("udp: unknown, size: %d\n", rtp_size);
-#endif
+				verbose(params->verbose, "udp: unknown, size: %d\n\n", rtp_size);
 			}
-#ifdef _DEBUG
-			printf("\n");
-#endif
 		};
 
 	char *rtp_body = 0;
@@ -195,7 +197,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	// 2.4. Something else (8)
 	for (;data_size > turn_hdr_size; data_size -= (rtp_size + turn_hdr_size), turn_head += (rtp_size + turn_hdr_size))
 	{
-		printf("data size: %d\n", udp_size ? udp_size : data_size);
+		verbose(params->verbose, "data size: %d\n", udp_size ? udp_size : data_size);
 
 		// check if ChannelData message
 		auto turn_hdr = reinterpret_cast<const channel_data_header *>(turn_head);
@@ -203,12 +205,14 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 
 		if (channel_mask == 0x40) {
 			// (1), (4), (5)
-			//A.D. FIXME: turn lies (I saw it into TCP-dumps) into ChannelData.MessageLength, we need make value to be multiple 4
-			//rtp_size = (htons(turn_hdr->message_size) + 3) >> 2 << 2;
 			rtp_size = htons(turn_hdr->message_size);
 			rtp_body = (char *)turn_head + turn_hdr_size;
 
 			parse_rtp(rtp_body, rtp_size);
+			if (tcp_data_size) {
+				//A.D. FIX: data is aligned, so we need make rtp_size to be multiple 4
+				rtp_size = (rtp_size + 3) >> 2 << 2;
+			}
 		} else {
 			if (udp_size) {
 				// UDP: (2), (3)
@@ -226,15 +230,11 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 				//printf("stun: magic cookie: 0x%x\n", magic_cookie);
 				if (magic_cookie == 0x2112a442) {
 					// (6)
-#ifdef _DEBUG
-					printf("stun: message %d bytes skipped\n", rtp_size);
-#endif
+					verbose(params->verbose, "stun: message %d bytes skipped\n", rtp_size);
 					rtp_size += 16;
 				} else {
 					// (7)
-#ifdef _DEBUG
-					printf("unknown: message skipped\n");
-#endif
+					verbose(params->verbose, "unknown: message skipped\n");
 					return;
 				}
 			}

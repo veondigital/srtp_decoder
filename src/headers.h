@@ -17,6 +17,9 @@
 
 #define SIZE_ETHERNET 14
 
+// Experimental feature, need be checked
+#define DETECT_ALL_RTP_STREAMS
+
 /* 4 bytes IP address */
 struct ip_address
 {
@@ -213,31 +216,33 @@ typedef std::list<srtp_packet_t> srtp_packets_t;
 
 struct rtp_info
 {
-	rtp_info(uint32_t assrc, uint32_t ts, long tv_sec)
-		: ssrc(assrc), first_ts(ts), last_ts(ts), packets(1)
+	rtp_info(uint32_t assrc, time_t t)
+		: ssrc(assrc), first_ts(t), last_ts(t), packets(1)
 	{
 	}
 
 	uint32_t ssrc { 0 };
-	uint32_t first_ts { 0 };
-	uint32_t last_ts { 0 };
+	time_t first_ts { 0 };
+	time_t last_ts { 0 };
 	uint32_t packets { 0 };
 };
 
 // RTP info map: key is SSRC
 using streams = std::map<uint32_t, rtp_info>;
-using streams_itr = std::map<uint16_t, rtp_info>::iterator;
 
 struct global_params
 {
 	std::string filter;
 	srtp_packets_t srtp_stream;
 
+	bool verbose {false};
+	bool collect_rtp_streams {false};
+
 	// rtp info
-	uint32_t ssrc{0};
-	uint16_t seq{0};
-	uint32_t first_ts{0};
-	uint32_t last_ts{0};
+	uint32_t ssrc {0};
+	uint16_t seq {0};
+	time_t first_ts {0};
+	time_t last_ts {0};
 
 	streams all_streams_info;
 };

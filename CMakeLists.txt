@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.0)
-project(example_project)
+project(srtp_decoder)
 
 ###############################################################################
 ## file globbing ##############################################################
@@ -21,6 +21,35 @@ target_include_directories(srtp_decoder PUBLIC src)
 ## dependencies ###############################################################
 ###############################################################################
 
+#################### DOCOPT ###################
+
+find_path(DOCOPT_INCLUDE_DIRS
+	NAMES docopt/docopt.h
+	PATH_SUFFIXES include /usr/local)
+
+if(NOT  DOCOPT_INCLUDE_DIRS)
+	MESSAGE(FATAL_ERROR "DOCOPT_INCLUDE_DIRS not found")
+else()
+	MESSAGE(STATUS "docopt include path found at: ${DOCOPT_INCLUDE_DIRS}")
+endif()
+
+if(DOCOPT_INCLUDE_DIRS)
+	set(HAVE_DOCOPT_DOCOPT_H 1)
+endif()
+
+find_library(DOCOPT_LIBS
+	NAMES docopt
+	PATH_SUFFIXES bin lib
+	/usr/local/lib)
+
+if(NOT DOCOPT_LIBS)
+	MESSAGE(FATAL_ERROR "DOCOPT_LIBS not found")
+else()
+	MESSAGE(STATUS "docopt libs found at: ${DOCOPT_LIBS}")
+endif()
+
+include_directories(${DOCOPT_INCLUDE_DIRS})
+target_link_libraries(srtp_decoder PUBLIC ${DOCOPT_LIBS})
 
 #################### PCAP ###################
 

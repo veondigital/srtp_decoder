@@ -11,6 +11,6 @@ ALG=AES_CM_128_HMAC_SHA1_80
 
 test -f output || mkdir output
 
-../build/srtp_decoder ${PCAP_FILENAME}.pcap ./output/${PCAP_FILENAME}_A.opus ${SSRC_A} ${SSTP_A} ${ALG} true
-../build/srtp_decoder ${PCAP_FILENAME}.pcap ./output/${PCAP_FILENAME}_B.opus ${SSRC_B} ${SSTP_B} ${ALG} true
+../build/srtp_decoder -l ${PCAP_FILENAME}.pcap ./output/${PCAP_FILENAME}_A.opus ${SSRC_A} ${SSTP_A} ${ALG} true 2>&1 >${PCAP_FILENAME}_A.log
+../build/srtp_decoder -l ${PCAP_FILENAME}.pcap ./output/${PCAP_FILENAME}_B.opus ${SSRC_B} ${SSTP_B} ${ALG} true 2>&1 >${PCAP_FILENAME}_B.log
 
