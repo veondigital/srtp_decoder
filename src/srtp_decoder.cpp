@@ -108,6 +108,7 @@ int main(int argc, char* argv[])
 		}
 #ifdef DETECT_ALL_RTP_STREAMS
 		if (show_all_streams_info) {
+			std::cout << std::endl;
 			std::cout << "=== RTP STREAMS INFO ===" << std::endl;
 			for (auto ri : params.all_streams_info) {
 				printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
@@ -130,17 +131,19 @@ int main(int argc, char* argv[])
 		std::ofstream payload_file(output_path.c_str(), std::ofstream::out | std::ofstream::binary);
 
 //		std::cout << std::endl << "start decoding filtered SRTP" << std::endl;
-		int count = 0;
+		auto count = 0;
 
 		for (srtp_packets_t::iterator i = params.srtp_stream.begin(), lim = params.srtp_stream.end(); i != lim; i++)
 		{
 			int rtp_length = 0;
 			unsigned char* srtp_buffer = i->data();
 			int length = i->size();
+
 			bool suc = srtp_decoder.UnprotectRtp(srtp_buffer, length, &rtp_length);
-			if (!suc)
-				std::cerr << " - can't decrypt packet" << std::endl;
-			
+			if (!suc) {
+				std::cerr << " - can't decrypt packet #" << count+1 << std::endl;
+			}
+
 			common_rtp_hdr_t *hdr = (common_rtp_hdr_t *)srtp_buffer;
 			int rtp_header_size = sizeof(common_rtp_hdr_t);
 			unsigned char* payload = srtp_buffer + rtp_header_size;
@@ -170,7 +173,7 @@ int main(int argc, char* argv[])
 
 			rtp_header_size = payload - srtp_buffer;
 			// std::cout << std::endl << "Chunk size: " << rtp_length - rtp_header_size << " payload: " << (int)hdr->pt;
-			count++;
+			++count;
 			size_t frame_size = rtp_length - rtp_header_size;
 
 			if (container)

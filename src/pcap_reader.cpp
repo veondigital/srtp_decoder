@@ -78,7 +78,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		/* retireve the position of the udp header */
 		uh = (udp_header *)((u_char*)ih + ip_hdr_size);
 		/* print ip addresses and udp ports */
-		verbose(params->verbose, "[%d] UDP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
+		verbose(params->verbose, "\n[%d] UDP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
 			pack_no, timestr, header->ts.tv_usec,
 			ih->saddr.byte1, ih->saddr.byte2, ih->saddr.byte3, ih->saddr.byte4, ntohs(uh->sport),
 			ih->daddr.byte1, ih->daddr.byte2, ih->daddr.byte3, ih->daddr.byte4, ntohs(uh->dport),
@@ -93,7 +93,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		/* retireve the position of the tcp header */
 		th = (tcp_header *)((u_char*)ih + ip_hdr_size);
 		/* print ip addresses and tcp ports */
-		verbose(params->verbose, "[%d] TCP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
+		verbose(params->verbose, "\n[%d] TCP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
 			pack_no, timestr, header->ts.tv_usec,
 			ih->saddr.byte1, ih->saddr.byte2, ih->saddr.byte3, ih->saddr.byte4, ntohs(th->sport),
 			ih->daddr.byte1, ih->daddr.byte2, ih->daddr.byte3, ih->daddr.byte4, ntohs(th->dport),
@@ -159,7 +159,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 					srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
 					params->srtp_stream.push_back(srtp_packet);
 				} else {
-					verbose(params->verbose, "rtp: alien ssrc=0x%x\n\n", ssrc);
+					verbose(params->verbose, "rtp: alien ssrc=0x%x\n", ssrc);
 				}
 #ifdef DETECT_ALL_RTP_STREAMS
 				if (ssrc == 0) {
@@ -216,8 +216,8 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		} else {
 			if (udp_size) {
 				// UDP: (2), (3)
-				rtp_size = udp_size;
-				rtp_body = (char *)turn_head;
+				rtp_size = udp_size - udp_hdr_size;
+				rtp_body = (char*)uh + udp_hdr_size;
 
 				parse_rtp(rtp_body, rtp_size);
 				return;
