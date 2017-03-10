@@ -48,7 +48,7 @@ static void int_to_char(unsigned int i, unsigned char ch[4])
 	ch[3] = i & 0xFF;
 }
 
-static const char VERSION[] = "SRTP decoder 1.06";
+static const char VERSION[] = "SRTP decoder 1.6";
 static const char USAGE[] =
 R"(srtp_decoder
 
@@ -117,7 +117,7 @@ int main(int argc, char* argv[])
 			std::cout << "=== RTP STREAMS INFO ===" << std::endl << std::endl;
 		}
 #endif
-		printf("Found %lu RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
+		printf("\nFound %lu RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
 			params.srtp_stream.size(), params.ssrc, params.first_ts, params.last_ts);
 
 		SrtpSession srtp_decoder;
@@ -140,9 +140,8 @@ int main(int argc, char* argv[])
 			int length = i->size();
 
 			bool suc = srtp_decoder.UnprotectRtp(srtp_buffer, length, &rtp_length);
-			if (!suc) {
-				std::cerr << " - can't decrypt packet #" << count+1 << std::endl;
-			}
+			if (!suc)
+				std::cerr << " - can't decrypt packet" << std::endl;
 
 			common_rtp_hdr_t *hdr = (common_rtp_hdr_t *)srtp_buffer;
 			int rtp_header_size = sizeof(common_rtp_hdr_t);
