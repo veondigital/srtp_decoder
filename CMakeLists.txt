@@ -4,7 +4,6 @@ project(srtp_decoder)
 set (srtp_decoder_VERSION_MAJOR 1)
 set (srtp_decoder_VERSION_MINOR 6)
 # configure a header file to pass some of the CMake settings to the source code
-MESSAGE(STATUS "PROJECT_NAME=${PROJECT_NAME}")
 configure_file (
   "${PROJECT_SOURCE_DIR}/src/srtp_decoder.h.in"
   "${PROJECT_SOURCE_DIR}/src/srtp_decoder.h"
@@ -32,29 +31,34 @@ target_include_directories(srtp_decoder PUBLIC src)
 
 #################### DOCOPT ###################
 
-find_path(docopt_INCLUDE_DIRS
+find_package(docopt PATHS /Users/alvid/SteppeChange/srtp_decoder/.build_usr CONFIG REQUIRED)
+
+if (docopt_FOUND)
+    MESSAGE(STATUS "docopt package found")
+    #FIXME: use native path
+    set (docopt_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/.build_usr/include)
+    #FIXME: use native path
+    set (docopt_LIBS ${PROJECT_SOURCE_DIR}/.build_usr/lib/libdocopt.a)
+else (docopt_FOUND)
+    find_path(docopt_INCLUDE_DIRS
 	NAMES docopt/docopt.h
-	PATH_SUFFIXES include /usr/local)
+	PATH_SUFFIXES include)
 
-if(NOT  docopt_INCLUDE_DIRS)
-	MESSAGE(FATAL_ERROR "docopt_INCLUDE_DIRS not found")
-else()
-	MESSAGE(STATUS "docopt include path found at: ${docopt_INCLUDE_DIRS}")
-endif()
-
-if(docopt_INCLUDE_DIRS)
-	set(HAVE_DOCOPT_DOCOPT_H 1)
-endif()
-
-find_library(docopt_LIBS
+    find_library(docopt_LIBS
 	NAMES docopt
-	PATH_SUFFIXES bin lib
-	/usr/local/lib)
+	PATH_SUFFIXES bin lib)
+endif (docopt_FOUND)
 
-if(NOT docopt_LIBS)
-	MESSAGE(FATAL_ERROR "docopt_LIBS not found")
+if (NOT docopt_INCLUDE_DIRS)
+    MESSAGE(FATAL_ERROR "docopt_INCLUDE_DIRS not found")
 else()
-	MESSAGE(STATUS "docopt libs found at: ${docopt_LIBS}")
+    MESSAGE(STATUS "docopt include path found at: ${docopt_INCLUDE_DIRS}")
+endif()
+
+if (NOT docopt_LIBS)
+    MESSAGE(FATAL_ERROR "docopt_LIBS not found")
+else()
+    MESSAGE(STATUS "docopt libs found at: ${docopt_LIBS}")
 endif()
 
 include_directories(${docopt_INCLUDE_DIRS})
@@ -65,8 +69,7 @@ target_link_libraries(srtp_decoder PUBLIC ${docopt_LIBS})
 if (PCAP_INCLUDE_DIR)
   set(PCAP_FOUND TRUE)
 else (PCAP_INCLUDE_DIR)
-
-  find_program(PCAP_CONFIG_EXECUTABLE  NAMES pcap-config PATHS)
+  find_program(PCAP_CONFIG_EXECUTABLE NAMES pcap-config PATHS)
   
   if (PCAP_CONFIG_EXECUTABLE)
       MESSAGE(STATUS "pcap-config found at: ${PCAP_CONFIG_EXECUTABLE}")
@@ -78,15 +81,13 @@ else (PCAP_INCLUDE_DIR)
   exec_program(${PCAP_CONFIG_EXECUTABLE} ARGS --libs   OUTPUT_VARIABLE PCAP_LIBRARIES )
   
   MESSAGE(STATUS "libpcap cflags: " ${PCAP_CFLAGS})
-  MESSAGE(STATUS "libpcap libraries: " ${PCAP_LIBRARIES})
+  MESSAGE(STATUS "libpcap libs: " ${PCAP_LIBRARIES})
   
   set(PCAP_FOUND TRUE)
 endif (PCAP_INCLUDE_DIR)
 
 if (PCAP_FOUND)
-   target_link_libraries(srtp_decoder PUBLIC
-   	${PCAP_LIBRARIES}
-   )
+   target_link_libraries(srtp_decoder PUBLIC ${PCAP_LIBRARIES})
 endif (PCAP_FOUND)
 
 ################## SRTP ######################
@@ -96,7 +97,10 @@ find_path(SRTP_INCLUDE_DIRS
 	PATH_SUFFIXES include
 )
 
-if(NOT  SRTP_INCLUDE_DIRS)
+#FIXME: use native path
+set (SRTP_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/.build_usr/include)
+
+if(NOT SRTP_INCLUDE_DIRS)
 	MESSAGE(FATAL_ERROR "SRTP_INCLUDE_DIRS not found")
 else()
 	MESSAGE(STATUS "libsrtp found at: ${SRTP_INCLUDE_DIRS}")
@@ -110,19 +114,17 @@ find_library(SRTP_LIBRARIES
 	NAMES srtp2
 	PATH_SUFFIXES bin lib)
 
+#FIXME: use native path
+set (SRTP_LIBRARIES ${PROJECT_SOURCE_DIR}/.build_usr/lib/libsrtp2.a)
+
 if(NOT SRTP_LIBRARIES)
 	MESSAGE(FATAL_ERROR "SRTP_LIBRARIES not found")
 else()
 	MESSAGE(STATUS "libsrtp libs found at: ${SRTP_LIBRARIES}")
 endif()
 
-if (SRTP_LIBRARIES)
-   target_link_libraries(srtp_decoder PUBLIC
-        ${SRTP_LIBRARIES}
-   )
-endif (SRTP_LIBRARIES)
-
 include_directories(${SRTP_INCLUDE_DIRS})
+target_link_libraries(srtp_decoder PUBLIC ${SRTP_LIBRARIES})
 
 ###############################################################################
 ## packaging ##################################################################
