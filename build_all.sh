@@ -14,7 +14,7 @@ function build_docopt() {
 
 function build_libsrtp() {
     cd libsrtp
-    ./configure --prefix=${BUILD_PREFIX} --with-openssl-dir=/usr/local/opt/openssl/
+    ./configure --prefix=${BUILD_PREFIX} #--with-openssl-dir=/usr/local/opt/openssl/
     make && make install
     cd ..
 }
