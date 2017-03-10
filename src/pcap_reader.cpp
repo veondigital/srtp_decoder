@@ -13,7 +13,9 @@ void verbose(bool verbose, Args&&... args)
 }
 #pragma clang diagnostic pop
 
-bool is_ip_over_eth(const u_char* packet)
+static void parse_rtp(global_params *params, time_t ts, char *rtp_body, int rtp_size);
+
+static bool is_ip_over_eth(const u_char* packet)
 {
 	struct ether_header *eptr;/* net/ethernet.h */
 
@@ -111,9 +113,74 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 
 	assert(turn_head);
 
-	auto parse_rtp =
-		[params, ts]
-		(char *rtp_body, int rtp_size) {
+
+	char *rtp_body = 0;
+	int   rtp_size = 0;
+
+	// Packet can be:
+	// 1. UDP (moves only one voice fragment)
+	// 1.1. ChannelData TURN (ChannelMask == 0x40xx)
+	// 1.1.1. RTP (1)
+	// 1.2. Another TURN-message
+	// 1.3. RTP (2)
+	// 1.4. Something else (3)
+	// 2. TCP (several PDUs may be inside)
+	// 2.1. PDU is ChannelData TURN (ChannelMask == 0x40xx)
+	// 2.1.1. RTP - whole packet (4)
+	// 2.1.2. RTP - begin of packet (5)
+	// 2.2. PDU is another TURN-message (6)
+	// 2.3. PDU is rest of RTP Packet (7)
+	// 2.4. Something else (8)
+	for (;data_size > turn_hdr_size; data_size -= (rtp_size + turn_hdr_size), turn_head += (rtp_size + turn_hdr_size))
+	{
+		verbose(params->verbose, "data size: %d\n", udp_size ? udp_size : data_size);
+
+		// check if ChannelData message
+		auto turn_hdr = reinterpret_cast<const channel_data_header *>(turn_head);
+		auto channel_mask = static_cast<uint8_t>(turn_hdr->channel_number);
+
+		if (channel_mask == 0x40) {
+			// (1), (4), (5)
+			rtp_size = htons(turn_hdr->message_size);
+			rtp_body = (char *)turn_head + turn_hdr_size;
+
+			parse_rtp(params, ts, rtp_body, rtp_size);
+			if (tcp_data_size) {
+				//A.D. FIX: data is aligned, so we need make rtp_size to be multiple 4
+				rtp_size = (rtp_size + 3) >> 2 << 2;
+			}
+		} else {
+			if (udp_size) {
+				// UDP: (2), (3)
+				rtp_size = udp_size - udp_hdr_size;
+				rtp_body = (char*)uh + udp_hdr_size;
+
+				parse_rtp(params, ts, rtp_body, rtp_size);
+				return;
+			} else {
+				// TCP: really it may be TURN-message (if) or unknown message (else)
+				rtp_size = htons(turn_hdr->message_size);
+				rtp_body = (char*)turn_head + turn_hdr_size;
+
+				uint32_t magic_cookie = htonl(*(reinterpret_cast<uint32_t *>(rtp_body)));
+				//printf("stun: magic cookie: 0x%x\n", magic_cookie);
+				if (magic_cookie == 0x2112a442) {
+					// (6)
+					verbose(params->verbose, "stun: message %d bytes skipped\n", rtp_size);
+					rtp_size += 16;
+				} else {
+					// (7)
+					verbose(params->verbose, "unknown: message skipped\n");
+					return;
+				}
+			}
+		}
+		//printf("rest of data size: %d\n\n", data_size - rtp_size - turn_hdr_size);
+	}
+}
+
+	void parse_rtp(global_params *params, time_t ts, char *rtp_body, int rtp_size)
+		{
 			auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
 			auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
 
@@ -176,72 +243,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 			} else {
 				verbose(params->verbose, "udp: unknown, size: %d\n\n", rtp_size);
 			}
-		};
-
-	char *rtp_body = 0;
-	int   rtp_size = 0;
-
-	// Packet can be:
-	// 1. UDP (moves only one voice fragment)
-	// 1.1. ChannelData TURN (ChannelMask == 0x40xx)
-	// 1.1.1. RTP (1)
-	// 1.2. Another TURN-message
-	// 1.3. RTP (2)
-	// 1.4. Something else (3)
-	// 2. TCP (several PDUs may be inside)
-	// 2.1. PDU is ChannelData TURN (ChannelMask == 0x40xx)
-	// 2.1.1. RTP - whole packet (4)
-	// 2.1.2. RTP - begin of packet (5)
-	// 2.2. PDU is another TURN-message (6)
-	// 2.3. PDU is rest of RTP Packet (7)
-	// 2.4. Something else (8)
-	for (;data_size > turn_hdr_size; data_size -= (rtp_size + turn_hdr_size), turn_head += (rtp_size + turn_hdr_size))
-	{
-		verbose(params->verbose, "data size: %d\n", udp_size ? udp_size : data_size);
-
-		// check if ChannelData message
-		auto turn_hdr = reinterpret_cast<const channel_data_header *>(turn_head);
-		auto channel_mask = static_cast<uint8_t>(turn_hdr->channel_number);
-
-		if (channel_mask == 0x40) {
-			// (1), (4), (5)
-			rtp_size = htons(turn_hdr->message_size);
-			rtp_body = (char *)turn_head + turn_hdr_size;
-
-			parse_rtp(rtp_body, rtp_size);
-			if (tcp_data_size) {
-				//A.D. FIX: data is aligned, so we need make rtp_size to be multiple 4
-				rtp_size = (rtp_size + 3) >> 2 << 2;
-			}
-		} else {
-			if (udp_size) {
-				// UDP: (2), (3)
-				rtp_size = udp_size - udp_hdr_size;
-				rtp_body = (char*)uh + udp_hdr_size;
-
-				parse_rtp(rtp_body, rtp_size);
-				return;
-			} else {
-				// TCP: really it may be TURN-message (if) or unknown message (else)
-				rtp_size = htons(turn_hdr->message_size);
-				rtp_body = (char*)turn_head + turn_hdr_size;
-
-				uint32_t magic_cookie = htonl(*(reinterpret_cast<uint32_t *>(rtp_body)));
-				//printf("stun: magic cookie: 0x%x\n", magic_cookie);
-				if (magic_cookie == 0x2112a442) {
-					// (6)
-					verbose(params->verbose, "stun: message %d bytes skipped\n", rtp_size);
-					rtp_size += 16;
-				} else {
-					// (7)
-					verbose(params->verbose, "unknown: message skipped\n");
-					return;
-				}
-			}
 		}
-		//printf("rest of data size: %d\n\n", data_size - rtp_size - turn_hdr_size);
-	}
-}
 
 bool read_pcap(std::string const& file, global_params& params)
 {
