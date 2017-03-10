@@ -9,7 +9,5 @@ SSTP_B=NmMwNTZkMjBjM2VhY2NhZTAyNzViYzJjOGFhNjA1
 
 ALG=AES_CM_128_HMAC_SHA1_80
 
-test -d output || mkdir output
-
-../build/srtp_decoder -vl ${PCAP_FILENAME}_a.pcap ./output/${PCAP_FILENAME}_A.opus ${SSRC_A} ${SSTP_A} ${ALG} true 2>&1 > ${PCAP_FILENAME}_a.log
-../build/srtp_decoder -vl ${PCAP_FILENAME}_b.pcap ./output/${PCAP_FILENAME}_B.opus ${SSRC_B} ${SSTP_B} ${ALG} true 2>&1 > ${PCAP_FILENAME}_b.log
+../.build/srtp_decoder -vl ${PCAP_FILENAME}_a.pcap ${PCAP_FILENAME}_A.opus ${SSRC_A} ${SSTP_A} ${ALG} true 2>&1 > ${PCAP_FILENAME}_a.log
+../.build/srtp_decoder -vl ${PCAP_FILENAME}_b.pcap ${PCAP_FILENAME}_B.opus ${SSRC_B} ${SSTP_B} ${ALG} true 2>&1 > ${PCAP_FILENAME}_b.log

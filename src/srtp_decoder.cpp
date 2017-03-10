@@ -2,6 +2,7 @@
 //
 
 
+#include "srtp_decoder.h"
 #include "decoder.h"
 #include "base64.h"
 #include "pcap.h"
@@ -11,7 +12,6 @@
 #include <cassert>
 
 #include "docopt/docopt.h"
-
 #include "pcap_reader.h"
 
 #define LINE_LEN 16
@@ -48,7 +48,7 @@ static void int_to_char(unsigned int i, unsigned char ch[4])
 	ch[3] = i & 0xFF;
 }
 
-static const char VERSION[] = "SRTP decoder 1.6";
+//static const char VERSION[] = SRTP_DECODER_VERSION_STRING;
 static const char USAGE[] =
 R"(srtp_decoder
 

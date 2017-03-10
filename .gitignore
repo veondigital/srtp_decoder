@@ -1,2 +1,7 @@
+src/srtp_decoder.h
+.build/
+.build_usr/
 build/
 tests/*.log
+tests/*.opus
+tests/*.pcma

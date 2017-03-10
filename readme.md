@@ -59,7 +59,7 @@ cd docopt
 mkdir build
 cd build
 cmake ..
-make && make install
+make
 
 cd ..
 mkdir build

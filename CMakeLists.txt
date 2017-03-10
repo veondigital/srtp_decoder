@@ -1,17 +1,26 @@
 cmake_minimum_required(VERSION 3.0)
 project(srtp_decoder)
+# The version number
+set (srtp_decoder_VERSION_MAJOR 1)
+set (srtp_decoder_VERSION_MINOR 6)
+# configure a header file to pass some of the CMake settings to the source code
+MESSAGE(STATUS "PROJECT_NAME=${PROJECT_NAME}")
+configure_file (
+  "${PROJECT_SOURCE_DIR}/src/srtp_decoder.h.in"
+  "${PROJECT_SOURCE_DIR}/src/srtp_decoder.h"
+  )
 
 ###############################################################################
 ## file globbing ##############################################################
 ###############################################################################
 
-file(GLOB_RECURSE sources      src/*.cpp src/*.h)
+file(GLOB_RECURSE srtp_decoder_SOURCES src/*.cpp src/*.h)
 
 ###############################################################################
 ## target definitions #########################################################
 ###############################################################################
 
-add_executable(srtp_decoder ${sources})
+add_executable(srtp_decoder ${srtp_decoder_SOURCES})
 target_compile_options(srtp_decoder PUBLIC -std=c++1y -Wall -Wfloat-conversion)
 
 # this lets me include files relative to the root src dir with a <> pair
@@ -23,33 +32,33 @@ target_include_directories(srtp_decoder PUBLIC src)
 
 #################### DOCOPT ###################
 
-find_path(DOCOPT_INCLUDE_DIRS
+find_path(docopt_INCLUDE_DIRS
 	NAMES docopt/docopt.h
 	PATH_SUFFIXES include /usr/local)
 
-if(NOT  DOCOPT_INCLUDE_DIRS)
-	MESSAGE(FATAL_ERROR "DOCOPT_INCLUDE_DIRS not found")
+if(NOT  docopt_INCLUDE_DIRS)
+	MESSAGE(FATAL_ERROR "docopt_INCLUDE_DIRS not found")
 else()
-	MESSAGE(STATUS "docopt include path found at: ${DOCOPT_INCLUDE_DIRS}")
+	MESSAGE(STATUS "docopt include path found at: ${docopt_INCLUDE_DIRS}")
 endif()
 
-if(DOCOPT_INCLUDE_DIRS)
+if(docopt_INCLUDE_DIRS)
 	set(HAVE_DOCOPT_DOCOPT_H 1)
 endif()
 
-find_library(DOCOPT_LIBS
+find_library(docopt_LIBS
 	NAMES docopt
 	PATH_SUFFIXES bin lib
 	/usr/local/lib)
 
-if(NOT DOCOPT_LIBS)
-	MESSAGE(FATAL_ERROR "DOCOPT_LIBS not found")
+if(NOT docopt_LIBS)
+	MESSAGE(FATAL_ERROR "docopt_LIBS not found")
 else()
-	MESSAGE(STATUS "docopt libs found at: ${DOCOPT_LIBS}")
+	MESSAGE(STATUS "docopt libs found at: ${docopt_LIBS}")
 endif()
 
-include_directories(${DOCOPT_INCLUDE_DIRS})
-target_link_libraries(srtp_decoder PUBLIC ${DOCOPT_LIBS})
+include_directories(${docopt_INCLUDE_DIRS})
+target_link_libraries(srtp_decoder PUBLIC ${docopt_LIBS})
 
 #################### PCAP ###################
 

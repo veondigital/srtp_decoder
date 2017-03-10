@@ -1,0 +1,7 @@
+// the configured options and settings for srtp_decoder
+#define SRTP_DECODER_VERSION_MAJOR @srtp_decoder_VERSION_MAJOR@
+#define SRTP_DECODER_VERSION_MINOR @srtp_decoder_VERSION_MINOR@
+#define STR(X) #X
+#define SRTP_DECODER_VERSION_STRING(MAJOR, MINOR) "SRTP Decoder " STR(MAJOR) "." STR(MINOR)
+
+static const char VERSION[] = SRTP_DECODER_VERSION_STRING(SRTP_DECODER_VERSION_MAJOR, SRTP_DECODER_VERSION_MINOR);
