@@ -5,6 +5,14 @@
 set destdir=.build
 set libsdir=.usr
 
+@if not exist %destdir% (
+	mkdir %destdir%
+)
+
+@if not exist %libsdir% (
+	mkdir %libsdir%
+)
+
 @if exist unzip.exe (
 	unzip.exe .\win32\WpdPack_4_1_2.zip .. 
 )
@@ -20,14 +28,6 @@ set libsdir=.usr
 @if not exist libsrtp\Release (
 	echo Please, first build libsrtp library
 	exit /b 1
-)
-
-@if not exist %destdir% (
-	mkdir %destdir%
-)
-
-@if not exist %libsdir% (
-	mkdir %libsdir%
 )
 
 :: Install libsrtp
