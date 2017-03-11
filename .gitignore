@@ -10,6 +10,7 @@ build/
 tests/*.log
 tests/*.opus
 tests/*.pcma
+tests/*.csv
 
 # Visual Studio 2015 files
 win32_vs15/.vs

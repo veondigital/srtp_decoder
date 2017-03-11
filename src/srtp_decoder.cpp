@@ -108,13 +108,30 @@ int main(int argc, char* argv[])
 		}
 #ifdef DETECT_ALL_RTP_STREAMS
 		if (show_all_streams_info) {
-			std::cout << std::endl;
-			std::cout << "=== RTP STREAMS INFO ===" << std::endl;
-			for (auto ri : params.all_streams_info) {
-				printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
-					ri.second.packets, ri.second.ssrc, ri.second.first_ts, ri.second.last_ts);
+			// produce CSV-file
+			std::string csv_path = input_path;
+			int pos = csv_path.find_last_of('.');
+			if (pos != csv_path.npos) {
+				csv_path.replace(pos+1, csv_path.npos, "csv");
 			}
-			std::cout << "=== RTP STREAMS INFO ===" << std::endl << std::endl;
+			
+			FILE *csv_file = fopen(csv_path.c_str(), "wt");
+			fprintf(csv_file, "begin_timestamp,end_timestamp,ssrc,src_ip_addr,dest_ip_addr,rtp_type,packets\n");
+			if (params.verbose)
+				std::cout << "=== RTP STREAMS INFO ===" << std::endl;
+			for (auto ri : params.all_streams_info) {
+				fprintf(csv_file, "%llu,%llu,0x%x,%d.%d.%d.%d,%d.%d.%d.%d,%d,%d\n",
+					ri.second.first_ts, ri.second.last_ts, ri.second.ssrc, 
+					ri.second.src_addr.byte1, ri.second.src_addr.byte2, ri.second.src_addr.byte3, ri.second.src_addr.byte4,
+					ri.second.dst_addr.byte1, ri.second.dst_addr.byte2, ri.second.dst_addr.byte3, ri.second.dst_addr.byte4,
+					ri.second.pt, ri.second.packets);
+				if (params.verbose)
+					printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
+						ri.second.packets, ri.second.ssrc, ri.second.first_ts, ri.second.last_ts);
+			}
+			fclose(csv_file);
+			if (params.verbose)
+				std::cout << "=== RTP STREAMS INFO ===" << std::endl << std::endl;
 		}
 #endif
 		printf("\nFound %lu RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",

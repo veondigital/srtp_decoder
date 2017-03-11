@@ -216,14 +216,20 @@ typedef std::list<srtp_packet_t> srtp_packets_t;
 
 struct rtp_info
 {
-	rtp_info(uint32_t assrc, time_t t)
-		: ssrc(assrc), first_ts(t), last_ts(t), packets(1)
+	rtp_info(uint32_t assrc, unsigned char payload, time_t t)
+		: ssrc(assrc), pt(payload), first_ts(t), last_ts(t), packets(1)
 	{
 	}
 
+	ip_address src_addr;
+	ip_address dst_addr;
+
 	uint32_t ssrc { 0 };
+	unsigned char pt { 0 };
+
 	time_t first_ts { 0 };
 	time_t last_ts { 0 };
+
 	uint32_t packets { 0 };
 };
 

@@ -13,7 +13,7 @@ void verbose(bool verbose, Args&&... args)
 }
 #pragma clang diagnostic pop
 
-static void parse_rtp(global_params *params, time_t ts, char *rtp_body, int rtp_size);
+static void parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size);
 
 static bool is_ip_over_eth(const u_char* packet)
 {
@@ -113,7 +113,6 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 
 	assert(turn_head);
 
-
 	char *rtp_body = 0;
 	int   rtp_size = 0;
 
@@ -144,7 +143,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 			rtp_size = htons(turn_hdr->message_size);
 			rtp_body = (char *)turn_head + turn_hdr_size;
 
-			parse_rtp(params, ts, rtp_body, rtp_size);
+			parse_rtp(params, ts, ih, rtp_body, rtp_size);
 			if (tcp_data_size) {
 				//A.D. FIX: data is aligned, so we need make rtp_size to be multiple 4
 				rtp_size = (rtp_size + 3) >> 2 << 2;
@@ -155,7 +154,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 				rtp_size = udp_size - udp_hdr_size;
 				rtp_body = (char*)uh + udp_hdr_size;
 
-				parse_rtp(params, ts, rtp_body, rtp_size);
+				parse_rtp(params, ts, ih, rtp_body, rtp_size);
 				return;
 			} else {
 				// TCP: really it may be TURN-message (if) or unknown message (else)
@@ -179,7 +178,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	}
 }
 
-void parse_rtp(global_params *params, time_t ts, char *rtp_body, int rtp_size)
+void parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size)
 {
 	auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
 	auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
@@ -229,12 +228,15 @@ void parse_rtp(global_params *params, time_t ts, char *rtp_body, int rtp_size)
 			verbose(params->verbose, "rtp: alien ssrc=0x%x\n", ssrc);
 		}
 #ifdef DETECT_ALL_RTP_STREAMS
-		if (ssrc == 0) {
+		if (ssrc == 0)
 			return;
-		}
+
 		streams::iterator itr = params->all_streams_info.find(ssrc);
 		if (itr == params->all_streams_info.end()) {
-			params->all_streams_info.insert(streams::value_type(ssrc, rtp_info(ssrc, ts)));
+			params->all_streams_info.insert(streams::value_type(ssrc, rtp_info(ssrc, hdr->pt, ts)));
+			itr = params->all_streams_info.find(ssrc);
+			itr->second.src_addr = ih->saddr;
+			itr->second.dst_addr = ih->daddr;
 		} else {
 			itr->second.last_ts = ts;
 			++itr->second.packets;
