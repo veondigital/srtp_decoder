@@ -179,71 +179,71 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	}
 }
 
-	void parse_rtp(global_params *params, time_t ts, char *rtp_body, int rtp_size)
-		{
-			auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
-			auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
+void parse_rtp(global_params *params, time_t ts, char *rtp_body, int rtp_size)
+{
+	auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
+	auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
 
-			//TODO: there are many of non-RTP protocols, it isn't enough to detect RTP by version only
-			if (hdr->version == 2) {
-				if (rtcp_hdr->pt == RTCP_SR_REPORT || rtcp_hdr->pt == RTCP_RR_REPORT) {
-					//if (params->ssrc == ntohl(rtcp_hdr->ssrc)) {
-					//	printf("skip rtcp report\n");
-					//}
-					verbose(params->verbose, "skip rtcp report\n\n");
-					return;
-				}
-
-				verbose(params->verbose, "rtp: head, size: %d\n", rtp_size);
-				verbose(params->verbose, "\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
-					hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
-
-				auto ssrc = ntohl(hdr->ssrc);
-				auto seq = htons(hdr->seq);
-				if (params->ssrc == ssrc) {
-					if (params->first_ts) {
-						if (seq != params->seq + 1) {
-							if (seq < params->seq) {
-								//both TCP and UDP
-								auto packs = params->seq - seq;
-								verbose(params->verbose, "rtp: reordered or retransmitted packet detected: %d (-%d)\n", seq, packs);
-								return;
-							} else if (seq == params->seq) {
-								//UDP only
-								verbose(params->verbose, "rtp: copy of packet detected: %d, skipped\n", seq);
-								return;
-							} else {
-								//UDP only
-								verbose(params->verbose, "rtp: lost packet(s) detected: %d - %d\n", params->seq, seq);
-							}
-						}
-					} else {
-						params->first_ts = ts;
-					}
-					params->last_ts = ts;
-					params->seq = seq;
-
-					srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
-					params->srtp_stream.push_back(srtp_packet);
-				} else {
-					verbose(params->verbose, "rtp: alien ssrc=0x%x\n", ssrc);
-				}
-#ifdef DETECT_ALL_RTP_STREAMS
-				if (ssrc == 0) {
-					return;
-				}
-				streams::iterator itr = params->all_streams_info.find(ssrc);
-				if (itr == params->all_streams_info.end()) {
-					params->all_streams_info.insert(streams::value_type(ssrc, rtp_info(ssrc, ts)));
-				} else {
-					itr->second.last_ts = ts;
-					++itr->second.packets;
-				}
-#endif
-			} else {
-				verbose(params->verbose, "udp: unknown, size: %d\n\n", rtp_size);
-			}
+	//TODO: there are many of non-RTP protocols, it isn't enough to detect RTP by version only
+	if (hdr->version == 2) {
+		if (rtcp_hdr->pt == RTCP_SR_REPORT || rtcp_hdr->pt == RTCP_RR_REPORT) {
+			//if (params->ssrc == ntohl(rtcp_hdr->ssrc)) {
+			//	printf("skip rtcp report\n");
+			//}
+			verbose(params->verbose, "skip rtcp report\n\n");
+			return;
 		}
+
+		verbose(params->verbose, "rtp: head, size: %d\n", rtp_size);
+		verbose(params->verbose, "\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
+			hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
+
+		auto ssrc = ntohl(hdr->ssrc);
+		auto seq = htons(hdr->seq);
+		if (params->ssrc == ssrc) {
+			if (params->first_ts) {
+				if (seq != params->seq + 1) {
+					if (seq < params->seq) {
+						//both TCP and UDP
+						auto packs = params->seq - seq;
+						verbose(params->verbose, "rtp: reordered or retransmitted packet detected: %d (-%d)\n", seq, packs);
+						return;
+					} else if (seq == params->seq) {
+						//UDP only
+						verbose(params->verbose, "rtp: copy of packet detected: %d, skipped\n", seq);
+						return;
+					} else {
+						//UDP only
+						verbose(params->verbose, "rtp: lost packet(s) detected: %d - %d\n", params->seq, seq);
+					}
+				}
+			} else {
+				params->first_ts = ts;
+			}
+			params->last_ts = ts;
+			params->seq = seq;
+
+			srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
+			params->srtp_stream.push_back(srtp_packet);
+		} else {
+			verbose(params->verbose, "rtp: alien ssrc=0x%x\n", ssrc);
+		}
+#ifdef DETECT_ALL_RTP_STREAMS
+		if (ssrc == 0) {
+			return;
+		}
+		streams::iterator itr = params->all_streams_info.find(ssrc);
+		if (itr == params->all_streams_info.end()) {
+			params->all_streams_info.insert(streams::value_type(ssrc, rtp_info(ssrc, ts)));
+		} else {
+			itr->second.last_ts = ts;
+			++itr->second.packets;
+		}
+#endif
+	} else {
+		verbose(params->verbose, "udp: unknown, size: %d\n\n", rtp_size);
+	}
+}
 
 bool read_pcap(std::string const& file, global_params& params)
 {

@@ -1,7 +1,8 @@
 src/srtp_decoder.h
 .build/
-.build_usr/
+.usr/
 build/
 tests/*.log
 tests/*.opus
 tests/*.pcma
+win32_vs15/.vs

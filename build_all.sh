@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build script for srtp_decoder
+# Build script for srtp_decoder for OS X and Linux
 # v0.1
 
 function build_docopt() {
@@ -19,9 +19,9 @@ function build_libsrtp() {
     cd ..
 }
 
-test -d .build_usr && rm -fR .build_usr
-mkdir .build_usr
-BUILD_PREFIX=`pwd`'/.build_usr'
+test -d .usr && rm -fR .usr
+mkdir .usr
+BUILD_PREFIX=`pwd`'/.usr'
 echo "Prefix: ${BUILD_PREFIX}"
 
 build_docopt
@@ -33,4 +33,4 @@ cd .build
 cmake ..
 make
 
-echo "Build completed"
+echo "Build completed, you can find srtp_decoder into ${BUILD_PREFIX}"
