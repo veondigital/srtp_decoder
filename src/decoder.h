@@ -1,14 +1,9 @@
-
 #include <list>
 #include <string.h>
 #include <algorithm>
 #include <fstream> 
-#ifdef WIN32
-#include "srtp.h"
-#else
+
 #include "srtp2/srtp.h"
-#endif
-//#include "err.h"
 
 
 // Constants for SRTP profiles.

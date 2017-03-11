@@ -111,13 +111,13 @@ int main(int argc, char* argv[])
 			std::cout << std::endl;
 			std::cout << "=== RTP STREAMS INFO ===" << std::endl;
 			for (auto ri : params.all_streams_info) {
-				printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
+				printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
 					ri.second.packets, ri.second.ssrc, ri.second.first_ts, ri.second.last_ts);
 			}
 			std::cout << "=== RTP STREAMS INFO ===" << std::endl << std::endl;
 		}
 #endif
-		printf("\nFound %lu RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
+		printf("\nFound %lu RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
 			params.srtp_stream.size(), params.ssrc, params.first_ts, params.last_ts);
 
 		SrtpSession srtp_decoder;
