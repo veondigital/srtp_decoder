@@ -113,25 +113,32 @@ int main(int argc, char* argv[])
 			int pos = csv_path.find_last_of('.');
 			if (pos != csv_path.npos) {
 				csv_path.replace(pos+1, csv_path.npos, "csv");
+			} else {
+				csv_path.append(".csv");
 			}
-			
-			FILE *csv_file = fopen(csv_path.c_str(), "wt");
-			fprintf(csv_file, "begin_timestamp,end_timestamp,ssrc,src_ip_addr,dest_ip_addr,rtp_type,packets\n");
-			if (params.verbose)
-				std::cout << "=== RTP STREAMS INFO ===" << std::endl;
-			for (auto ri : params.all_streams_info) {
-				fprintf(csv_file, "%llu,%llu,0x%x,%d.%d.%d.%d,%d.%d.%d.%d,%d,%d\n",
-					ri.second.first_ts, ri.second.last_ts, ri.second.ssrc, 
-					ri.second.src_addr.byte1, ri.second.src_addr.byte2, ri.second.src_addr.byte3, ri.second.src_addr.byte4,
-					ri.second.dst_addr.byte1, ri.second.dst_addr.byte2, ri.second.dst_addr.byte3, ri.second.dst_addr.byte4,
-					ri.second.pt, ri.second.packets);
+			do {
+				FILE *csv_file = fopen(csv_path.c_str(), "wt");
+				if (!csv_file) {
+					std::cerr << "Can't open file: " << csv_path << std::endl;
+					break;
+				}
+				fprintf(csv_file, "begin_timestamp,end_timestamp,ssrc,src_ip_addr,dest_ip_addr,rtp_type,packets\n");
 				if (params.verbose)
-					printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
-						ri.second.packets, ri.second.ssrc, ri.second.first_ts, ri.second.last_ts);
-			}
-			fclose(csv_file);
-			if (params.verbose)
-				std::cout << "=== RTP STREAMS INFO ===" << std::endl << std::endl;
+					std::cout << "=== RTP STREAMS INFO ===" << std::endl;
+				for (auto ri : params.all_streams_info) {
+					fprintf(csv_file, "%llu,%llu,0x%x,%d.%d.%d.%d,%d.%d.%d.%d,%d,%d\n",
+						ri.second.first_ts, ri.second.last_ts, ri.second.ssrc,
+						ri.second.src_addr.byte1, ri.second.src_addr.byte2, ri.second.src_addr.byte3, ri.second.src_addr.byte4,
+						ri.second.dst_addr.byte1, ri.second.dst_addr.byte2, ri.second.dst_addr.byte3, ri.second.dst_addr.byte4,
+						ri.second.pt, ri.second.packets);
+					if (params.verbose)
+						printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
+							ri.second.packets, ri.second.ssrc, ri.second.first_ts, ri.second.last_ts);
+				}
+				fclose(csv_file);
+				if (params.verbose)
+					std::cout << "=== RTP STREAMS INFO ===" << std::endl << std::endl;
+			} while (false);
 		}
 #endif
 		printf("\nFound %lu RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
@@ -146,7 +153,6 @@ int main(int argc, char* argv[])
 		}
 
 		std::ofstream payload_file(output_path.c_str(), std::ofstream::out | std::ofstream::binary);
-
 //		std::cout << std::endl << "start decoding filtered SRTP" << std::endl;
 		auto count = 0;
 
@@ -156,8 +162,8 @@ int main(int argc, char* argv[])
 			unsigned char* srtp_buffer = i->data();
 			int length = i->size();
 
-			bool suc = srtp_decoder.UnprotectRtp(srtp_buffer, length, &rtp_length);
-			if (!suc)
+			bool res = srtp_decoder.UnprotectRtp(srtp_buffer, length, &rtp_length);
+			if (!res)
 				std::cerr << " - can't decrypt packet" << std::endl;
 
 			common_rtp_hdr_t *hdr = (common_rtp_hdr_t *)srtp_buffer;
@@ -182,7 +188,7 @@ int main(int argc, char* argv[])
 				// extension elements as fit into the length as indicated in the RTP
 				// header extension length.Since this length is signaled in full 32 -
 				// bit words, padding bytes are used to pad to a 32 - bit boundary.
-				int extension_size = payload - srtp_buffer;;
+				int extension_size = payload - srtp_buffer;
 				int padding = extension_size % 4;
 				payload += padding;
 			}
