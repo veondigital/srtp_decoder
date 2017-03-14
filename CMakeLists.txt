@@ -33,14 +33,14 @@ if (NOT WIN32)
 
 #################### DOCOPT ###################
 
-find_package(docopt PATHS ${PROJECT_SOURCE_DIR}/.build_usr CONFIG REQUIRED)
+find_package(docopt PATHS ${PROJECT_SOURCE_DIR}/.usr CONFIG REQUIRED)
 
 if (docopt_FOUND)
 	MESSAGE(STATUS "docopt package found")
 	#FIXME: use native path
-	set (docopt_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/.build_usr/include)
+	set (docopt_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/.usr/include)
 	#FIXME: use native path
-	set (docopt_LIBS ${PROJECT_SOURCE_DIR}/.build_usr/lib/libdocopt.a)
+	set (docopt_LIBS ${PROJECT_SOURCE_DIR}/.usr/lib/libdocopt.a)
 else (docopt_FOUND)
 	find_path(docopt_INCLUDE_DIRS
 		NAMES docopt/docopt.h
@@ -99,7 +99,7 @@ find_path(SRTP_INCLUDE_DIRS
 	PATH_SUFFIXES include)
 
 #FIXME: use native path
-set (SRTP_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/.build_usr/include)
+set (SRTP_INCLUDE_DIRS ${PROJECT_SOURCE_DIR}/.usr/include)
 
 if (NOT SRTP_INCLUDE_DIRS)
 	MESSAGE(FATAL_ERROR "SRTP_INCLUDE_DIRS not found")
@@ -116,7 +116,7 @@ find_library(SRTP_LIBRARIES
 	PATH_SUFFIXES bin lib)
 
 #FIXME: use native path
-set (SRTP_LIBRARIES ${PROJECT_SOURCE_DIR}/.build_usr/lib/libsrtp2.a)
+set (SRTP_LIBRARIES ${PROJECT_SOURCE_DIR}/.usr/lib/libsrtp2.a)
 
 if (NOT SRTP_LIBRARIES)
 	MESSAGE(FATAL_ERROR "SRTP_LIBRARIES not found")
