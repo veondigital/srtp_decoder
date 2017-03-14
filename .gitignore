@@ -9,6 +9,7 @@ build/
 # Some produced files
 tests/*.log
 tests/*.opus
+tests/*.pcm
 tests/*.pcma
 tests/*.csv
 

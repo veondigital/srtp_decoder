@@ -1,6 +1,8 @@
-#include "pcap_reader.h"
 #include <cassert>
 #include <utility>
+
+#include "pcap_reader.h"
+#include "tcp_stun_former.h"
 
 // http://fuckingclangwarnings.com
 #pragma clang diagnostic push
@@ -13,7 +15,10 @@ void verbose(bool verbose, Args&&... args)
 }
 #pragma clang diagnostic pop
 
-static void parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size);
+static TCP_STUN_Former former;
+
+// function returns true if found rtp packet with own ssrc
+static bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size);
 
 static bool is_ip_over_eth(const u_char* packet)
 {
@@ -76,7 +81,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	/* determine protocol */
 	switch(ih->proto) {
 	case IPPROTO_UDP:
-		/* retireve the position of the udp header */
+		/* retrieve the position of the udp header */
 		uh = (udp_header *)((u_char*)ih + ip_hdr_size);
 		/* print ip addresses and udp ports */
 		verbose(params->verbose, "\n[%d] UDP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
@@ -91,7 +96,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		break;
 
 	case IPPROTO_TCP:
-		/* retireve the position of the tcp header */
+		/* retrieve the position of the tcp header */
 		th = (tcp_header *)((u_char*)ih + ip_hdr_size);
 		/* print ip addresses and tcp ports */
 		verbose(params->verbose, "\n[%d] TCP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
@@ -138,7 +143,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 			rtp_size = htons(stun_hdr->message_size);
 			rtp_body = (char *)sh + STUN_CHANNEL_HEADER_SIZE;
 
-			parse_rtp(params, ts, ih, rtp_body, rtp_size);
+			/*bool res = */parse_rtp(params, ts, ih, rtp_body, rtp_size);
 
 			if (tcp_data_size && (rtp_size & 0x0003)) {
 				//A.D. FIX: data is aligned, so we need make rtp_size to be multiple 4
@@ -168,8 +173,9 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	}
 }
 
-void parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size)
+bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size)
 {
+	auto res = false;
 	auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
 	auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
 
@@ -180,7 +186,7 @@ void parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 			//	printf("skip rtcp report\n");
 			//}
 			verbose(params->verbose, "skip rtcp report\n\n");
-			return;
+			return false;
 		}
 
 		verbose(params->verbose, "rtp: head, size: %d\n", rtp_size);
@@ -190,17 +196,19 @@ void parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 		auto ssrc = ntohl(hdr->ssrc);
 		auto seq = htons(hdr->seq);
 		if (params->ssrc == ssrc) {
+			res = true;
+
 			if (params->first_ts) {
 				if (seq != params->seq + 1) {
 					if (seq < params->seq) {
 						//both TCP and UDP
 						auto packs = params->seq - seq;
 						verbose(params->verbose, "rtp: reordered or retransmitted packet detected: %d (-%d)\n", seq, packs);
-						return;
+						return res;
 					} else if (seq == params->seq) {
 						//UDP only
 						verbose(params->verbose, "rtp: copy of packet detected: %d, skipped\n", seq);
-						return;
+						return res;
 					} else {
 						//UDP only
 						verbose(params->verbose, "rtp: lost packet(s) detected: %d - %d\n", params->seq, seq);
@@ -218,9 +226,6 @@ void parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 			verbose(params->verbose, "rtp: alien ssrc=0x%x\n", ssrc);
 		}
 #ifdef DETECT_ALL_RTP_STREAMS
-		if (ssrc == 0)
-			return;
-
 		streams::iterator itr = params->all_streams_info.find(ssrc);
 		if (itr == params->all_streams_info.end()) {
 			params->all_streams_info.insert(streams::value_type(ssrc, rtp_info(ssrc, hdr->pt, ts)));
@@ -235,6 +240,7 @@ void parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 	} else {
 		verbose(params->verbose, "udp: unknown, size: %d\n\n", rtp_size);
 	}
+	return res;
 }
 
 bool read_pcap(std::string const& file, global_params& params)
