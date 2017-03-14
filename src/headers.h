@@ -17,7 +17,7 @@
 
 #define SIZE_ETHERNET 14
 
-// Experimental feature, need be checked
+// Experimental feature, need to be verified
 #define DETECT_ALL_RTP_STREAMS
 
 /* 4 bytes IP address */
@@ -63,6 +63,8 @@ struct udp_header
 	u_short len;			// Datagram length
 	u_short crc;			// Checksum
 };
+
+#define UDP_HEADER_SIZE 8
 
 using tcp_seq = uint32_t;
 /* TCP Header structure as per RFC 793 */
@@ -133,6 +135,10 @@ struct channel_data_header {
 	uint16_t channel_number;
 	uint16_t message_size;
 };
+
+#define STUN_CHANNEL_HEADER_SIZE 4
+#define STUN_HEADER_SIZE 20
+#define STUN_MAGIC_COOKIE 0x2112a442
 
 struct ether_header {
 	u_char	ether_dhost[6];
