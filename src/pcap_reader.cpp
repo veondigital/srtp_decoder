@@ -4,16 +4,20 @@
 #include "pcap_reader.h"
 #include "tcp_stun_former.h"
 
+#ifdef DARWIN
 // http://fuckingclangwarnings.com
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wformat-security"
+# pragma clang diagnostic push
+# pragma clang diagnostic ignored "-Wformat-security"
+#endif
 template<typename... Args>
 void verbose(bool verbose, Args&&... args)
 {
 	if (verbose)
 		printf(std::forward<Args&&>(args)...);
 }
-#pragma clang diagnostic pop
+#ifdef DARWIN
+# pragma clang diagnostic pop
+#endif
 
 //TODO
 //static TCP_STUN_Former former;
@@ -85,7 +89,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		/* retrieve the position of the udp header */
 		uh = (udp_header *)((u_char*)ih + ip_hdr_size);
 		/* print ip addresses and udp ports */
-		verbose(params->verbose, "\n[%d] UDP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
+		verbose(params->verbose, "[%d] UDP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
 			pack_no, timestr, header->ts.tv_usec,
 			ih->saddr.byte1, ih->saddr.byte2, ih->saddr.byte3, ih->saddr.byte4, ntohs(uh->sport),
 			ih->daddr.byte1, ih->daddr.byte2, ih->daddr.byte3, ih->daddr.byte4, ntohs(uh->dport),
@@ -100,7 +104,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		/* retrieve the position of the tcp header */
 		th = (tcp_header *)((u_char*)ih + ip_hdr_size);
 		/* print ip addresses and tcp ports */
-		verbose(params->verbose, "\n[%d] TCP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
+		verbose(params->verbose, "[%d] TCP: %s.%.6d\t%d.%d.%d.%d:%d -> %d.%d.%d.%d:%d  length:%d\n",
 			pack_no, timestr, header->ts.tv_usec,
 			ih->saddr.byte1, ih->saddr.byte2, ih->saddr.byte3, ih->saddr.byte4, ntohs(th->sport),
 			ih->daddr.byte1, ih->daddr.byte2, ih->daddr.byte3, ih->daddr.byte4, ntohs(th->dport),
@@ -119,7 +123,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	assert(sh);
 
 	char *rtp_body = 0;
-	int   rtp_size = 0;
+	u_int rtp_size = 0;
 
 	// Packet can be:
 	// 1. UDP (moves only one voice fragment)
@@ -144,10 +148,16 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 			rtp_size = htons(stun_hdr->message_size);
 			rtp_body = (char *)sh + STUN_CHANNEL_HEADER_SIZE;
 
-			/*bool res = */parse_rtp(params, ts, ih, rtp_body, rtp_size);
+			// check amount of stun data
+			if (data_size < rtp_size + STUN_CHANNEL_HEADER_SIZE) {
+				verbose(params->verbose, "stun: not enough data, skip packet\n");
+				assert(tcp_data_size);
+				break;
+			}
 
+			parse_rtp(params, ts, ih, rtp_body, rtp_size);
+			//A.D. FIX: data is aligned, so we need make rtp_size to be multiple 4
 			if (tcp_data_size && (rtp_size & 0x0003)) {
-				//A.D. FIX: data is aligned, so we need make rtp_size to be multiple 4
 				rtp_size = ((rtp_size >> 2) + 1) << 2;
 			}
 		} else if (magic_cookie == STUN_MAGIC_COOKIE) {
@@ -155,23 +165,30 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 			rtp_body = (char *)sh + STUN_CHANNEL_HEADER_SIZE;
 			rtp_size += (STUN_HEADER_SIZE - STUN_CHANNEL_HEADER_SIZE);
 
+			// check amount of stun data
+			if (data_size < rtp_size + STUN_CHANNEL_HEADER_SIZE) {
+				verbose(params->verbose, "stun: not enough data, skip packet\n");
+				assert(tcp_data_size);
+				break;
+			}
 			verbose(params->verbose, "stun: message %d bytes skipped\n", htons(stun_hdr->message_size));
 			// UDP moves only one user message
 			if (udp_size)
-				return;
+				break;
 		} else if (udp_size) {
 			// (3)
 			rtp_size = udp_size - UDP_HEADER_SIZE;
 			rtp_body = (char*)uh + UDP_HEADER_SIZE;
 
 			parse_rtp(params, ts, ih, rtp_body, rtp_size);
-			return;
+			break;
 		} else {
 			// (4), (7)
 			verbose(params->verbose, "unknown: message skipped\n");
-			return;
+			break;
 		}
 	}
+	verbose(params->verbose, "\n");
 }
 
 bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size)
@@ -181,13 +198,14 @@ bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 	auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
 
 	//TODO: there are many of non-RTP protocols, it isn't enough to detect RTP by version only
-	if (hdr->version == 2) {
+	do {
+		if (hdr->version != 2) {
+			verbose(params->verbose, "udp: unknown, size: %d\n", rtp_size);
+			break;
+		}
 		if (rtcp_hdr->pt == RTCP_SR_REPORT || rtcp_hdr->pt == RTCP_RR_REPORT) {
-			//if (params->ssrc == ntohl(rtcp_hdr->ssrc)) {
-			//	printf("skip rtcp report\n");
-			//}
-			verbose(params->verbose, "skip rtcp report\n\n");
-			return false;
+			verbose(params->verbose, "skip rtcp report\n");
+			break;
 		}
 
 		verbose(params->verbose, "rtp: head, size: %d\n", rtp_size);
@@ -227,6 +245,8 @@ bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 			verbose(params->verbose, "rtp: alien ssrc=0x%x\n", ssrc);
 		}
 #ifdef DETECT_ALL_RTP_STREAMS
+		if (ssrc == 0)
+			break;
 		streams::iterator itr = params->all_streams_info.find(ssrc);
 		if (itr == params->all_streams_info.end()) {
 			params->all_streams_info.insert(streams::value_type(ssrc, rtp_info(ssrc, hdr->pt, ts)));
@@ -238,9 +258,8 @@ bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 			++itr->second.packets;
 		}
 #endif
-	} else {
-		verbose(params->verbose, "udp: unknown, size: %d\n\n", rtp_size);
-	}
+	} while (false);
+
 	return res;
 }
 

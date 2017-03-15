@@ -1,7 +1,6 @@
 // srtp_decoder.cpp : Defines the entry point for the console application.
 //
 
-
 #include "srtp_decoder.h"
 #include "decoder.h"
 #include "base64.h"
@@ -16,7 +15,7 @@
 
 #define LINE_LEN 16
 
-bool ParseKeyParams(const std::string& key_params, uint8_t* key, int len) {
+static bool ParseKeyParams(const std::string& key_params, uint8_t* key, int len) {
 	// example key_params: "YUJDZGVmZ2hpSktMbW9QUXJzVHVWd3l6MTIzNDU2"
 
 	// Fail if base64 decode fails, or the key is the wrong size.
@@ -32,7 +31,7 @@ bool ParseKeyParams(const std::string& key_params, uint8_t* key, int len) {
 	return true;
 }
 
-int SrtpCryptoSuiteFromName(const std::string& crypto_suite) {
+static int SrtpCryptoSuiteFromName(const std::string& crypto_suite) {
 	if (crypto_suite == CS_AES_CM_128_HMAC_SHA1_32)
 		return SRTP_AES128_CM_SHA1_32;
 	if (crypto_suite == CS_AES_CM_128_HMAC_SHA1_80)
@@ -75,6 +74,7 @@ int main(int argc, char* argv[])
 	for (auto const& arg : args) {
 		std::cout << arg.first << ": " << arg.second << std::endl;
 	}
+	std::cout << std::endl;
 #endif
 	global_params params;
 	params.filter = "udp or tcp";
@@ -153,12 +153,11 @@ int main(int argc, char* argv[])
 		}
 #endif
 #ifdef WIN32
-		printf("\nFound %lu RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
-			params.srtp_stream.size(), params.ssrc, params.first_ts, params.last_ts);
+		printf("Found %lu RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
 #else
-		printf("\nFound %lu RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
-			params.srtp_stream.size(), params.ssrc, params.first_ts, params.last_ts);
+		printf("Found %lu RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
 #endif
+			params.srtp_stream.size(), params.ssrc, params.first_ts, params.last_ts);
 
 		SrtpSession srtp_decoder;
 		srtp_decoder.Init();
