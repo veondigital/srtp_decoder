@@ -84,7 +84,7 @@ unzip .\win32_vs15\WpdPack_4_1_2.zip
 .\libsrtp\srtp.sln
 
 .\prepare_build_win.cmd
-.\win32\srtp_decoder.sln
+.\win32_vs15\srtp_decoder.sln
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
 ### *Prerequrements linux/mac*
