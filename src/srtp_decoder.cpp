@@ -126,14 +126,25 @@ int main(int argc, char* argv[])
 				if (params.verbose)
 					std::cout << "=== RTP STREAMS INFO ===" << std::endl;
 				for (auto ri : params.all_streams_info) {
+					if (ri.second.packets == 1)
+						continue;
+# ifdef WIN32
+					fprintf(csv_file, "%llu,%llu,0x%x,%d.%d.%d.%d,%d.%d.%d.%d,%d,%d\n",
+# else
 					fprintf(csv_file, "%lu,%lu,0x%x,%d.%d.%d.%d,%d.%d.%d.%d,%d,%d\n",
+# endif
 						ri.second.first_ts, ri.second.last_ts, ri.second.ssrc,
 						ri.second.src_addr.byte1, ri.second.src_addr.byte2, ri.second.src_addr.byte3, ri.second.src_addr.byte4,
 						ri.second.dst_addr.byte1, ri.second.dst_addr.byte2, ri.second.dst_addr.byte3, ri.second.dst_addr.byte4,
 						ri.second.pt, ri.second.packets);
-					if (params.verbose)
+					if (params.verbose) {
+# ifdef WIN32
+						printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
+# else
 						printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
-							ri.second.packets, ri.second.ssrc, ri.second.first_ts, ri.second.last_ts);
+# endif
+								ri.second.packets, ri.second.ssrc, ri.second.first_ts, ri.second.last_ts);
+					}
 				}
 				fclose(csv_file);
 				if (params.verbose)
@@ -141,8 +152,13 @@ int main(int argc, char* argv[])
 			} while (false);
 		}
 #endif
+#ifdef WIN32
+		printf("\nFound %lu RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
+			params.srtp_stream.size(), params.ssrc, params.first_ts, params.last_ts);
+#else
 		printf("\nFound %lu RTP packets: ssrc: 0x%x, first_ts: %lu, last_ts: %lu\n",
 			params.srtp_stream.size(), params.ssrc, params.first_ts, params.last_ts);
+#endif
 
 		SrtpSession srtp_decoder;
 		srtp_decoder.Init();

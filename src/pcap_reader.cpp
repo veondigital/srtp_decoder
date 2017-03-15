@@ -1,6 +1,7 @@
-#include "pcap_reader.h"
 #include <cassert>
 #include <utility>
+
+#include "pcap_reader.h"
 
 // http://fuckingclangwarnings.com
 #pragma clang diagnostic push
