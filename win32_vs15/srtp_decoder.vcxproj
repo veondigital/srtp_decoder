@@ -16,6 +16,7 @@
     <ClCompile Include="..\src\decoder.cpp" />
     <ClCompile Include="..\src\pcap_reader.cpp" />
     <ClCompile Include="..\src\srtp_decoder.cpp" />
+    <ClCompile Include="..\src\tcp_stun_former.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\docopt\docopt.h" />
@@ -26,6 +27,7 @@
     <ClInclude Include="..\src\decoder.h" />
     <ClInclude Include="..\src\headers.h" />
     <ClInclude Include="..\src\pcap_reader.h" />
+    <ClInclude Include="..\src\tcp_stun_former.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{D7C265C3-20CA-441A-BBC7-B78DFB0F18F6}</ProjectGuid>

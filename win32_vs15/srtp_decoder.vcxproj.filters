@@ -25,6 +25,9 @@
     <ClCompile Include="..\docopt\docopt.cpp">
       <Filter>docopt</Filter>
     </ClCompile>
+    <ClCompile Include="..\src\tcp_stun_former.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="..\src\base64.h">
@@ -50,6 +53,9 @@
     </ClInclude>
     <ClInclude Include="..\docopt\docopt_value.h">
       <Filter>docopt</Filter>
+    </ClInclude>
+    <ClInclude Include="..\src\tcp_stun_former.h">
+      <Filter>src</Filter>
     </ClInclude>
   </ItemGroup>
 </Project>

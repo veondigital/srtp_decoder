@@ -15,7 +15,8 @@ void verbose(bool verbose, Args&&... args)
 }
 #pragma clang diagnostic pop
 
-static TCP_STUN_Former former;
+//TODO
+//static TCP_STUN_Former former;
 
 // function returns true if found rtp packet with own ssrc
 static bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size);
