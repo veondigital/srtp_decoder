@@ -122,21 +122,21 @@ int main(int argc, char* argv[])
 					std::cerr << "Can't open file: " << csv_path << std::endl;
 					break;
 				}
-				fprintf(csv_file, "begin_timestamp,end_timestamp,ssrc,src_ip_addr,dest_ip_addr,rtp_type,packets\n");
+				fprintf(csv_file, "begin_timestamp,end_timestamp,ssrc,src_addr,dest_addr,proto,rtp_type,packets\n");
 				if (params.verbose)
 					std::cout << "=== RTP STREAMS INFO ===" << std::endl;
 				for (auto ri : params.all_streams_info) {
 					if (ri.second.packets == 1)
 						continue;
 # ifdef WIN32
-					fprintf(csv_file, "%llu,%llu,0x%x,%d.%d.%d.%d,%d.%d.%d.%d,%d,%d\n",
+					fprintf(csv_file, "%llu,%llu,0x%x,%d.%d.%d.%d:%d,%d.%d.%d.%d:%d,%s,%d,%d\n",
 # else
-					fprintf(csv_file, "%lu,%lu,0x%x,%d.%d.%d.%d,%d.%d.%d.%d,%d,%d\n",
+					fprintf(csv_file, "%lu,%lu,0x%x,%d.%d.%d.%d:%d,%d.%d.%d.%d:%d,%s,%d,%d\n",
 # endif
 						ri.second.first_ts, ri.second.last_ts, ri.second.ssrc,
-						ri.second.src_addr.byte1, ri.second.src_addr.byte2, ri.second.src_addr.byte3, ri.second.src_addr.byte4,
-						ri.second.dst_addr.byte1, ri.second.dst_addr.byte2, ri.second.dst_addr.byte3, ri.second.dst_addr.byte4,
-						ri.second.pt, ri.second.packets);
+						ri.second.src_addr.byte1, ri.second.src_addr.byte2, ri.second.src_addr.byte3, ri.second.src_addr.byte4, ri.second.src_port,
+						ri.second.dst_addr.byte1, ri.second.dst_addr.byte2, ri.second.dst_addr.byte3, ri.second.dst_addr.byte4, ri.second.dst_port,
+						ri.second.udp ? "udp" : "tcp", ri.second.pt, ri.second.packets);
 					if (params.verbose) {
 # ifdef WIN32
 						printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",

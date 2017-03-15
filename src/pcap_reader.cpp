@@ -22,8 +22,8 @@ void verbose(bool verbose, Args&&... args)
 //TODO
 //static TCP_STUN_Former former;
 
-// function returns true if found rtp packet with own ssrc
-static bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size);
+// function returns ssrc if found rtp packet
+static int parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size);
 
 static bool is_ip_over_eth(const u_char* packet)
 {
@@ -149,9 +149,8 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 			rtp_body = (char *)sh + STUN_CHANNEL_HEADER_SIZE;
 
 			// check amount of stun data
-			if (data_size < rtp_size + STUN_CHANNEL_HEADER_SIZE) {
-				verbose(params->verbose, "stun: not enough data, skip packet\n");
-				assert(tcp_data_size);
+			if (tcp_data_size && data_size < rtp_size + STUN_CHANNEL_HEADER_SIZE) {
+				verbose(params->verbose, "stun: not enough data or not stun, skip packet\n");
 				break;
 			}
 
@@ -165,12 +164,6 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 			rtp_body = (char *)sh + STUN_CHANNEL_HEADER_SIZE;
 			rtp_size += (STUN_HEADER_SIZE - STUN_CHANNEL_HEADER_SIZE);
 
-			// check amount of stun data
-			if (data_size < rtp_size + STUN_CHANNEL_HEADER_SIZE) {
-				verbose(params->verbose, "stun: not enough data, skip packet\n");
-				assert(tcp_data_size);
-				break;
-			}
 			verbose(params->verbose, "stun: message %d bytes skipped\n", htons(stun_hdr->message_size));
 			// UDP moves only one user message
 			if (udp_size)
@@ -191,9 +184,9 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	verbose(params->verbose, "\n");
 }
 
-bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size)
+int parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size)
 {
-	auto res = false;
+	auto ssrc = 0;
 	auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
 	auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
 
@@ -212,10 +205,9 @@ bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 		verbose(params->verbose, "\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
 			hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
 
-		auto ssrc = ntohl(hdr->ssrc);
-		auto seq = htons(hdr->seq);
+		ssrc = ntohl(hdr->ssrc);
 		if (params->ssrc == ssrc) {
-			res = true;
+			auto seq = htons(hdr->seq);
 
 			if (params->first_ts) {
 				if (seq != params->seq + 1) {
@@ -223,11 +215,13 @@ bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 						//both TCP and UDP
 						auto packs = params->seq - seq;
 						verbose(params->verbose, "rtp: reordered or retransmitted packet detected: %d (-%d)\n", seq, packs);
-						return res;
+						ssrc = 0;
+						break;
 					} else if (seq == params->seq) {
 						//UDP only
 						verbose(params->verbose, "rtp: copy of packet detected: %d, skipped\n", seq);
-						return res;
+						ssrc = 0;
+						break;
 					} else {
 						//UDP only
 						verbose(params->verbose, "rtp: lost packet(s) detected: %d - %d\n", params->seq, seq);
@@ -242,7 +236,7 @@ bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 			srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
 			params->srtp_stream.push_back(srtp_packet);
 		} else {
-			verbose(params->verbose, "rtp: alien ssrc=0x%x\n", ssrc);
+			//verbose(params->verbose, "rtp: alien ssrc=0x%x\n", ssrc);
 		}
 #ifdef DETECT_ALL_RTP_STREAMS
 		if (ssrc == 0)
@@ -253,6 +247,21 @@ bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 			itr = params->all_streams_info.find(ssrc);
 			itr->second.src_addr = ih->saddr;
 			itr->second.dst_addr = ih->daddr;
+
+			auto ip_hdr_size = IP_HL(ih) * 4;
+
+			if (ih->proto == IPPROTO_UDP) {
+				udp_header *uh = (udp_header *)((u_char*)ih + ip_hdr_size);
+				itr->second.src_port = htons(uh->sport);
+				itr->second.dst_port = htons(uh->dport);
+			} else if (ih->proto == IPPROTO_TCP) {
+				itr->second.udp = false;
+				tcp_header *th = (tcp_header *)((u_char*)ih + ip_hdr_size);
+				itr->second.src_port = htons(th->sport);
+				itr->second.dst_port = htons(th->dport);
+			} else {
+				assert(false);
+			}
 		} else {
 			itr->second.last_ts = ts;
 			++itr->second.packets;
@@ -260,7 +269,7 @@ bool parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_
 #endif
 	} while (false);
 
-	return res;
+	return ssrc;
 }
 
 bool read_pcap(std::string const& file, global_params& params)
