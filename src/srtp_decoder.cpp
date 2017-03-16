@@ -63,7 +63,7 @@ R"(srtp_decoder
         --version     Show version.
 
     Examples:
-        srtp_decoder ./tests/pcma.pcap ./tests/pcma.paylaod 0xdeadbeef aSBrbm93IGFsbCB5b3VyIGxpdHRsZSBzZWNyZXRz AES_CM_128_HMAC_SHA1_80 false
+        srtp_decoder ./tests/pcma.pcap ./tests/pcma.payload 0xdeadbeef aSBrbm93IGFsbCB5b3VyIGxpdHRsZSBzZWNyZXRz AES_CM_128_HMAC_SHA1_80 false
         srtp_decoder ./tests/webrtc_opus_p2p.pcap ./tests/output/webrtc_opus_p2p.payload 0x20C23467 FfLxRxclZ/lNM/g5MNSZgmvAUzR/pgSIVyOHUHji AES_CM_128_HMAC_SHA1_80 true
 )";
 
