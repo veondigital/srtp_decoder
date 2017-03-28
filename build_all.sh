@@ -33,4 +33,4 @@ cd .build
 cmake ..
 make
 
-echo "Build completed, you can find srtp_decoder into ${BUILD_PREFIX}"
+echo "Build completed, you can find srtp_decoder into "`pwd`
