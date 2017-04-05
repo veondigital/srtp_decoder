@@ -143,7 +143,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 		auto channel_mask = static_cast<uint8_t>(stun_hdr->channel_number);
 		auto magic_cookie = htonl(*(reinterpret_cast<uint32_t *>((char *)sh + STUN_CHANNEL_HEADER_SIZE)));
 
-		if (channel_mask == 0x40) {
+		if (channel_mask & 0x40) {
 			// (1), (5)
 			rtp_size = htons(stun_hdr->message_size);
 			rtp_body = (char *)sh + STUN_CHANNEL_HEADER_SIZE;
