@@ -13,11 +13,9 @@
 #include "docopt/docopt.h"
 #include "pcap_reader.h"
 
-#define LINE_LEN 16
-
-static bool ParseKeyParams(const std::string& key_params, uint8_t* key, int len) {
-	// example key_params: "YUJDZGVmZ2hpSktMbW9QUXJzVHVWd3l6MTIzNDU2"
-
+// example key_params: "YUJDZGVmZ2hpSktMbW9QUXJzVHVWd3l6MTIzNDU2"
+static bool ParseKeyParams(const std::string& key_params, uint8_t* key, int len)
+{
 	// Fail if base64 decode fails, or the key is the wrong size.
 	std::string key_b64(key_params), key_str;
 	if (!Base64::Decode(key_b64, Base64::DO_STRICT, &key_str, NULL) ||
@@ -26,12 +24,12 @@ static bool ParseKeyParams(const std::string& key_params, uint8_t* key, int len)
 		throw std::runtime_error("SRTP fails");
 		return false;
 	}
-
 	memcpy(key, key_str.c_str(), len);
 	return true;
 }
 
-static int SrtpCryptoSuiteFromName(const std::string& crypto_suite) {
+static int SrtpCryptoSuiteFromName(const std::string& crypto_suite)
+{
 	if (crypto_suite == CS_AES_CM_128_HMAC_SHA1_32)
 		return SRTP_AES128_CM_SHA1_32;
 	if (crypto_suite == CS_AES_CM_128_HMAC_SHA1_80)
@@ -47,12 +45,12 @@ static void int_to_char(unsigned int i, unsigned char ch[4])
 	ch[3] = i & 0xFF;
 }
 
-//static const char VERSION[] = SRTP_DECODER_VERSION_STRING;
 static const char USAGE[] =
 R"(srtp_decoder
 
     Usage:
-        srtp_decoder [-vl] <input_tcpdump_pcap_path> <output_decoded_payload_path> <ssrc_into_rtp_hex_format> <Base64_master_key> <sha_Crypto_Suite> <container>
+        srtp_decoder [-v] <input_tcpdump_pcap_path> <output_decoded_payload_path> <ssrc_into_rtp_hex_format> <Base64_master_key> <sha_Crypto_Suite> <container>
+        srtp_decoder [-v] -l <input_tcpdump_pcap_path>
         srtp_decoder (-h | --help)
         srtp_decoder --version
 
@@ -80,18 +78,24 @@ int main(int argc, char* argv[])
 	params.filter = "udp or tcp";
 	params.verbose = false;
 
-	std::string input_path = args["<input_tcpdump_pcap_path>"].asString();
-	std::string output_path = args["<output_decoded_payload_path>"].asString();
-	std::string ssrc_str = args["<ssrc_into_rtp_hex_format>"].asString();
-	std::string keyBase64 = args["<Base64_master_key>"].asString();
-	std::string sha = args["<sha_Crypto_Suite>"].asString();
+	auto get_arg = [&args](const char *name) {
+		if (args[name])
+			return args[name].asString();
+		return std::string("");
+	};
+
+	std::string input_path = get_arg("<input_tcpdump_pcap_path>");
+	std::string output_path = get_arg("<output_decoded_payload_path>");
+	std::string ssrc_str = get_arg("<ssrc_into_rtp_hex_format>");
+	std::string keyBase64 = get_arg("<Base64_master_key>");
+	std::string sha = get_arg("<sha_Crypto_Suite>");
 	params.ssrc = strtoul(ssrc_str.c_str(), 0, 16);
-	bool container = args["<container>"].asString() == std::string("true");
-	bool show_all_streams_info = args["--list"].asBool();
-	if (args["<filter>"])
-		params.filter = args["<filter>"].asString();
-	if (args["--verbose"])
-		params.verbose = args["--verbose"].asBool();
+	bool container = false;
+	if (args["<container>"])
+		container = args["<container>"].asString() == std::string("true");
+	bool show_all_streams_info = false;
+	show_all_streams_info = args["--list"].asBool();
+	params.verbose = args["--verbose"].asBool();
 
 	std::cout << "pcap file: " << input_path << std::endl;
 	std::cout << "payload file: " << output_path << std::endl;
@@ -110,7 +114,7 @@ int main(int argc, char* argv[])
 		if (show_all_streams_info) {
 			// produce CSV-file
 			std::string csv_path = input_path;
-			int pos = csv_path.find_last_of('.');
+			auto pos = csv_path.find_last_of('.');
 			if (pos != csv_path.npos) {
 				csv_path.replace(pos+1, csv_path.npos, "csv");
 			} else {
@@ -125,7 +129,7 @@ int main(int argc, char* argv[])
 				fprintf(csv_file, "begin_timestamp,end_timestamp,ssrc,src_addr,dest_addr,proto,rtp_type,packets\n");
 				if (params.verbose)
 					std::cout << "=== RTP STREAMS INFO ===" << std::endl;
-				for (auto ri : params.all_streams_info) {
+				for (auto &ri : params.all_streams_info) {
 					if (ri.second.packets == 1)
 						continue;
 # ifdef WIN32
@@ -149,9 +153,14 @@ int main(int argc, char* argv[])
 				fclose(csv_file);
 				if (params.verbose)
 					std::cout << "=== RTP STREAMS INFO ===" << std::endl << std::endl;
+
+				std::cout << "Output file produced: " << csv_path << std::endl;
 			} while (false);
+
+			return 0;
 		}
 #endif
+
 #ifdef WIN32
 		printf("Found %lu RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
 #else
@@ -168,7 +177,6 @@ int main(int argc, char* argv[])
 		}
 
 		std::ofstream payload_file(output_path.c_str(), std::ofstream::out | std::ofstream::binary);
-//		std::cout << std::endl << "start decoding filtered SRTP" << std::endl;
 		auto count = 0;
 
 		for (srtp_packets_t::iterator i = params.srtp_stream.begin(), lim = params.srtp_stream.end(); i != lim; i++)
@@ -223,8 +231,6 @@ int main(int argc, char* argv[])
 			}
 			// The array may contain null characters, which are also copied without stopping the copying process.
 			payload_file.write(reinterpret_cast<char*>(payload), frame_size);
-
-//			std::cout << count << " frame size: " << frame_size << std::endl;
 		}
 		payload_file.close();
 		std::cout << "Wrote " << count << " payload chunks" << std::endl << std::endl;
@@ -233,8 +239,7 @@ int main(int argc, char* argv[])
 	catch (std::exception const& err) {
 		std::cerr << "Terminate: " << err.what() << std::endl;
 		return 1;
-	} 
-
+	}
 	return 0;
 }
 
