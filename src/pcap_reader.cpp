@@ -2,7 +2,6 @@
 #include <utility>
 
 #include "pcap_reader.h"
-//#include "tcp_stun_former.h"
 
 #ifdef DARWIN
 // http://fuckingclangwarnings.com
@@ -18,9 +17,6 @@ void verbose(bool verbose, Args&&... args)
 #ifdef DARWIN
 # pragma clang diagnostic pop
 #endif
-
-//TODO
-//static TCP_STUN_Former former;
 
 // function returns ssrc if found rtp packet
 static int parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size);

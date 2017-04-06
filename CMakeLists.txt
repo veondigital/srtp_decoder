@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.0)
 project(srtp_decoder)
 # The version number
 set (srtp_decoder_VERSION_MAJOR 1)
-set (srtp_decoder_VERSION_MINOR 6)
+set (srtp_decoder_VERSION_MINOR 7)
 # configure a header file to pass some of the CMake settings to the source code
 configure_file (
   "${PROJECT_SOURCE_DIR}/src/srtp_decoder.h.in"
@@ -13,7 +13,13 @@ configure_file (
 ## file globbing ##############################################################
 ###############################################################################
 
-file(GLOB_RECURSE srtp_decoder_SOURCES src/*.cpp src/*.h)
+file(GLOB_RECURSE srtp_decoder_SOURCES
+  src/base64.cpp
+  src/decoder.cpp
+  src/pcap_reader.cpp
+  src/srtp_decoder.cpp
+  src/headers.h
+  )
 
 ###############################################################################
 ## target definitions #########################################################
