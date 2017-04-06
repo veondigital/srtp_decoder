@@ -88,9 +88,9 @@ struct rtcp_report_hdr {
 	unsigned char rc : 5;	/* reception report count */
 	unsigned char p : 1;	/* padding flag           */
 	unsigned char version : 2; /* protocol version    */
-	unsigned char pt;		/* packet type            */
-	uint16_t length;		/* length                 */
-	uint32_t ssrc;			/* synchronization source */
+	unsigned char pt;	/* packet type            */
+	uint16_t length;	/* length                 */
+	uint32_t ssrc;		/* synchronization source */
 };
 
 #define RTCP_SR_REPORT (200)
@@ -105,9 +105,9 @@ struct common_rtp_hdr_t {
 	unsigned char version : 2; /* protocol version    */
 	unsigned char pt : 7;	/* payload type           */
 	unsigned char m : 1;	/* marker bit             */
-	uint16_t seq;			/* sequence number        */
-	uint32_t ts;			/* timestamp              */
-	uint32_t ssrc;			/* synchronization source */
+	uint16_t seq;		/* sequence number        */
+	uint32_t ts;		/* timestamp              */
+	uint32_t ssrc;		/* synchronization source */
 };
 
 /* RTP Header Extension*/
