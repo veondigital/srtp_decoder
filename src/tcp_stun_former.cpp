@@ -48,7 +48,7 @@ int TCP_STUN_Former::eat_buffer(const char *data, int size, int *eat_bytes)
 		auto p = buf->data();
 		auto stun_hdr = reinterpret_cast<const channel_data_header *>(p);
 		auto channel_mask = static_cast<uint8_t>(stun_hdr->channel_number);
-		if (channel_mask == 0x40) {
+		if (channel_mask & 0x40) {
 			full_packet_size = STUN_CHANNEL_HEADER_SIZE + htons(stun_hdr->message_size);
 			state = eDataFound;
 			return eOk;

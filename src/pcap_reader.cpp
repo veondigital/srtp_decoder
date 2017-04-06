@@ -2,7 +2,7 @@
 #include <utility>
 
 #include "pcap_reader.h"
-#include "tcp_stun_former.h"
+//#include "tcp_stun_former.h"
 
 #ifdef DARWIN
 // http://fuckingclangwarnings.com
@@ -206,7 +206,7 @@ int parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_b
 			hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
 
 		ssrc = ntohl(hdr->ssrc);
-		if (params->ssrc == ssrc) {
+		if (params->ssrc && params->ssrc == ssrc) {
 			auto seq = htons(hdr->seq);
 
 			if (params->first_ts) {
@@ -235,8 +235,6 @@ int parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_b
 
 			srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
 			params->srtp_stream.push_back(srtp_packet);
-		} else {
-			//verbose(params->verbose, "rtp: alien ssrc=0x%x\n", ssrc);
 		}
 #ifdef DETECT_ALL_RTP_STREAMS
 		if (ssrc == 0)

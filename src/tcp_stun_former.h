@@ -26,7 +26,7 @@ public:
 
 private:
 	srtp_packet_t *buf {0};
-	int full_packet_size {0};
+	size_t full_packet_size {0};
 
 	enum State {
 		eIdle,
