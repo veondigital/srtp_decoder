@@ -198,32 +198,37 @@ int parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_b
 		}
 
 		verbose(params->verbose, "rtp: head, size: %d\n", rtp_size);
-		verbose(params->verbose, "\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
-			hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
 
 		ssrc = ntohl(hdr->ssrc);
 		if (params->ssrc && params->ssrc == ssrc) {
 			auto seq = htons(hdr->seq);
 
+			verbose(params->verbose, "\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
+				hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
+
 			if (params->first_ts) {
-				if (seq != params->seq + 1) {
+				// continue of RTP track
+				if (seq != params->seq+1) {
 					if (seq < params->seq) {
 						//both TCP and UDP
-						auto packs = params->seq - seq;
-						verbose(params->verbose, "rtp: reordered or retransmitted packet detected: %d (-%d)\n", seq, packs);
-						ssrc = 0;
-						break;
+						if (!hdr->m) {
+							//not first packet after re-ICE-establishing
+							verbose(params->verbose, "rtp: reordered or retransmitted packet detected: %d, skip\n", seq);
+							ssrc = 0;
+							break;
+						}
 					} else if (seq == params->seq) {
 						//UDP only
-						verbose(params->verbose, "rtp: copy of packet detected: %d, skipped\n", seq);
+						verbose(params->verbose, "rtp: copy of packet detected: %d, skip\n", seq);
 						ssrc = 0;
 						break;
 					} else {
 						//UDP only
-						verbose(params->verbose, "rtp: lost packet(s) detected: %d - %d\n", params->seq, seq);
+						verbose(params->verbose, "rtp: lost packet(s) detected: %d - %d\n", params->seq+1, seq);
 					}
 				}
 			} else {
+				// begin of RTP track
 				params->first_ts = ts;
 			}
 			params->last_ts = ts;

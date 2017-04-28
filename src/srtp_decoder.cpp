@@ -141,6 +141,7 @@ int main(int argc, char* argv[])
 						ri.second.src_addr.byte1, ri.second.src_addr.byte2, ri.second.src_addr.byte3, ri.second.src_addr.byte4, ri.second.src_port,
 						ri.second.dst_addr.byte1, ri.second.dst_addr.byte2, ri.second.dst_addr.byte3, ri.second.dst_addr.byte4, ri.second.dst_port,
 						ri.second.udp ? "udp" : "tcp", ri.second.pt, ri.second.packets);
+
 					if (params.verbose) {
 # ifdef WIN32
 						printf("Found %06d RTP packets: ssrc: 0x%x, first_ts: %llu, last_ts: %llu\n",
@@ -179,21 +180,25 @@ int main(int argc, char* argv[])
 		std::ofstream payload_file(output_path.c_str(), std::ofstream::out | std::ofstream::binary);
 		auto count = 0;
 
-		for (srtp_packets_t::iterator i = params.srtp_stream.begin(), lim = params.srtp_stream.end(); i != lim; i++)
-		{
+		for (srtp_packets_t::iterator i = params.srtp_stream.begin(), lim = params.srtp_stream.end(); i != lim; i++) {
 			int rtp_length = 0;
-			unsigned char* srtp_buffer = i->data();
+			unsigned char *srtp_buffer = i->data();
 			int length = i->size();
 
 			bool res = srtp_decoder.UnprotectRtp(srtp_buffer, length, &rtp_length);
-			if (!res)
-				std::cerr << " - can't decrypt packet" << std::endl;
+			if (!res) {
+				common_rtp_hdr_t *hdr = (common_rtp_hdr_t *)srtp_buffer;
+				std::cerr << " - seq=" << htons(hdr->seq) << std::endl;
+				continue;
+			}
 
 			common_rtp_hdr_t *hdr = (common_rtp_hdr_t *)srtp_buffer;
 			int rtp_header_size = sizeof(common_rtp_hdr_t);
 			unsigned char* payload = srtp_buffer + rtp_header_size;
-			if (hdr->x) // has extension 
-			{
+			if (params.verbose)
+				std::cout << "decrypt packet - seq=" << htons(hdr->seq) << std::endl;
+			// has extension 
+			if (hdr->x) {
 				// If the X bit in the RTP header is one, a variable - length header
 				// extension MUST be appended to the RTP header, following the CSRC list if present.
 				common_rtp_hdr_ex_t* hdr_ex = (common_rtp_hdr_ex_t *)payload;
@@ -201,8 +206,7 @@ int main(int argc, char* argv[])
 
 				// calculate extensions RFC5285
 				int number_of_extensions = htons(hdr_ex->extension_len);
-				for (int n = 0; n < number_of_extensions; n++)
-				{
+				for (int n = 0; n < number_of_extensions; n++) {
 					rtp_hdr_ex5285_t* h5285 = (rtp_hdr_ex5285_t*)payload;
 					payload += sizeof(rtp_hdr_ex5285_t) + h5285->extension_len;
 				}
@@ -217,12 +221,10 @@ int main(int argc, char* argv[])
 			}
 
 			rtp_header_size = payload - srtp_buffer;
-			// std::cout << std::endl << "Chunk size: " << rtp_length - rtp_header_size << " payload: " << (int)hdr->pt;
 			++count;
 			size_t frame_size = rtp_length - rtp_header_size;
 
-			if (container)
-			{
+			if (container) {
 				unsigned char sz[4];
 				int_to_char(frame_size, sz);
 				payload_file.write(reinterpret_cast<char*>(&sz[0]), 4);
