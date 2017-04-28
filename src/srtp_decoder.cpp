@@ -129,7 +129,7 @@ int main(int argc, char* argv[])
 				fprintf(csv_file, "begin_timestamp,end_timestamp,ssrc,src_addr,dest_addr,proto,rtp_type,packets\n");
 				if (params.verbose)
 					std::cout << "=== RTP STREAMS INFO ===" << std::endl;
-				for (auto &ri : params.all_streams_info) {
+				for (auto &ri : params.srtp_streams) {
 					if (ri.second.packets == 1)
 						continue;
 # ifdef WIN32
@@ -180,10 +180,10 @@ int main(int argc, char* argv[])
 		std::ofstream payload_file(output_path.c_str(), std::ofstream::out | std::ofstream::binary);
 		auto count = 0;
 
-		for (srtp_packets_t::iterator i = params.srtp_stream.begin(), lim = params.srtp_stream.end(); i != lim; i++) {
+		for (auto &i: params.srtp_stream) {
 			int rtp_length = 0;
-			unsigned char *srtp_buffer = i->data();
-			int length = i->size();
+			unsigned char *srtp_buffer = i.data();
+			int length = i.size();
 
 			bool res = srtp_decoder.UnprotectRtp(srtp_buffer, length, &rtp_length);
 			if (!res) {

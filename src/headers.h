@@ -226,7 +226,7 @@ struct rtp_info
 		: ssrc(assrc), pt(payload), first_ts(t), last_ts(t), packets(1)
 	{
 	}
-	
+
 	bool udp { true };
 
 	ip_address src_addr;
@@ -241,10 +241,12 @@ struct rtp_info
 	time_t last_ts { 0 };
 
 	uint32_t packets { 0 };
+
+	srtp_packets_t srtp_stream;
 };
 
-// RTP info map: key is SSRC
-using streams = std::map<uint32_t, rtp_info>;
+// RTP info map: key is src_IP:port+dst_IP:port+SSRC
+using streams = std::map<std::string, rtp_info>;
 
 struct global_params
 {
@@ -260,6 +262,6 @@ struct global_params
 	time_t first_ts {0};
 	time_t last_ts {0};
 
-	streams all_streams_info;
+	streams srtp_streams;
 };
 
