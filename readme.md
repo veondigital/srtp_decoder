@@ -14,6 +14,8 @@ file*
 
 -   write payload to output file
 
+-   produce .csv-file with list of all detected RTP streams
+
 RTP can be packed in different way.
 Supports stream: WebRTC, Regular SRTP, Turn Extensions.
 
@@ -26,7 +28,14 @@ Option: container[true/false] - switches on/off this feature.
 
 ### *Usage:*
 
-srtp_decoder[.exe] [-lv] input_file output_file ssrc key sha container
+srtp_decoder[.exe] -l [-v] -f input_file -s ssrc [-e expression]
+
+\* -l \| --list - Parse all rtp streams and produce .csv-file with full information
+
+\* ssrc - RTP stream identifier https://tools.ietf.org/html/rfc3550\#page-59 hex
+with 0x prefix
+
+srtp_decoder[.exe] [-v] -f input_file -o output_file -s ssrc -k key -r sha -c container [-e expression]
 
 \* input - input pcap file path (Not pcapng!!!, just pcap)
 
@@ -41,9 +50,9 @@ with 0x prefix
 
 Options:
 
-\* -v \| --verbose - Print detail information about packets into stdout
+\* expression - pcap filter expression
 
-\* -l \| --list - Show all rtp streams (experimental option)
+\* -v \| --verbose - Print detail information about packets into stdout
 
 ### *Compiling:*
 
