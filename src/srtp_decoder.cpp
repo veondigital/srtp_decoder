@@ -71,8 +71,6 @@ R"(srtp_decoder
         srtp_decoder -f ./tests/webrtc_opus_p2p.pcap -o ./tests/output/webrtc_opus_p2p.payload -s 0x20C23467 -k FfLxRxclZ/lNM/g5MNSZgmvAUzR/pgSIVyOHUHji -r AES_CM_128_HMAC_SHA1_80 -c true
 )";
 
-#define  _DEBUG
-
 int main(int argc, char* argv[])
 {
 	std::map<std::string, docopt::value> args = docopt::docopt(USAGE, { argv + 1, argv + argc }, true, VERSION);
