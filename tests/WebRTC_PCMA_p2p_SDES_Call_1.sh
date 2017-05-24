@@ -9,7 +9,8 @@ SSTP_B=bhn3DDDcf7GhHEnFkGLW9V223XncT60nJrTQK06x
 
 ALG=AES_CM_128_HMAC_SHA1_80
 
-../.build/srtp_decoder -vl ${PCAP_FILENAME}.pcap ${PCAP_FILENAME}_A.pcma ${SSRC_A} ${SSTP_A} ${ALG} false 2>&1 > ${PCAP_FILENAME}_A.log
-../.build/srtp_decoder -vl ${PCAP_FILENAME}.pcap ${PCAP_FILENAME}_B.pcma ${SSRC_B} ${SSTP_B} ${ALG} false 2>&1 > ${PCAP_FILENAME}_B.log
+../cmake-build-debug/srtp_decoder -v -l ${PCAP_FILENAME}.pcap 2>&1 > ${PCAP_FILENAME}.log
+#../.build/srtp_decoder -v ${PCAP_FILENAME}.pcap ${PCAP_FILENAME}_A.pcma ${SSRC_A} ${SSTP_A} ${ALG} false 2>&1 > ${PCAP_FILENAME}_A.log
+#../.build/srtp_decoder -v ${PCAP_FILENAME}.pcap ${PCAP_FILENAME}_B.pcma ${SSRC_B} ${SSTP_B} ${ALG} false 2>&1 > ${PCAP_FILENAME}_B.log
 
 

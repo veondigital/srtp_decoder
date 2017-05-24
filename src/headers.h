@@ -222,8 +222,8 @@ typedef std::list<srtp_packet_t> srtp_packets_t;
 
 struct rtp_info
 {
-	rtp_info(uint32_t assrc, unsigned char payload, time_t t)
-		: ssrc(assrc), pt(payload), first_ts(t), last_ts(t), packets(1)
+	rtp_info(bool audp, uint32_t assrc, unsigned char payload, time_t t, uint32_t seq)
+		: udp(audp), ssrc(assrc), pt(payload), first_ts(t), last_ts(t), first_seq(seq), last_seq(seq), packets(1)
 	{
 	}
 
@@ -240,28 +240,25 @@ struct rtp_info
 	time_t first_ts { 0 };
 	time_t last_ts { 0 };
 
+    uint32_t first_seq { 0 };
+    uint32_t last_seq { 0 };
+
 	uint32_t packets { 0 };
 
 	srtp_packets_t srtp_stream;
 };
 
-// RTP info map: key is src_IP:port+dst_IP:port+SSRC
+// RTP info map with key consists of  src_IP:port + dst_IP:port + SSRC
 using streams = std::map<std::string, rtp_info>;
 
 struct global_params
 {
+    // input parameters
 	std::string filter;
-	srtp_packets_t srtp_stream;
-
 	bool verbose {false};
-	bool collect_rtp_streams {false};
-
-	// rtp info
 	uint32_t ssrc {0};
-	uint16_t seq {0};
-	time_t first_ts {0};
-	time_t last_ts {0};
 
+    // output parameters
 	streams srtp_streams;
 };
 

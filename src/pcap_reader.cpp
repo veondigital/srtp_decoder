@@ -71,9 +71,6 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	ltime = localtime(&ts);
 	strftime(timestr, sizeof timestr, "%H:%M:%S", ltime);
 
-	/* print timestamp and length of the packet */
-	// printf("%s.%.6d len:%d \n", timestr, header->ts.tv_usec, header->len);
-
 	eth_hdr_size = is_ip_over_eth(pkt_data) ? SIZE_ETHERNET : 0;
 
 	/* retrieve the position of the ip header */
@@ -128,7 +125,7 @@ void p_handler(u_char *param, const struct pcap_pkthdr *header, const u_char *pk
 	// 1.2. Another TURN-message (2)
 	// 1.3. RTP (3)
 	// 1.4. Something else (4)
-	// 2. TCP (several PDUs may be inside)
+	// 2. TCP (several PDUs may be inside) with one or several PDUs
 	// 2.1. PDU is ChannelData TURN (ChannelMask == 0x40xx) with RTP inside (5)
 	// 2.2. PDU is another TURN-message (6)
 	// 2.4. PDU is something else (7)
@@ -193,15 +190,15 @@ std::string ip_to_string(const ip_address &ip)
 
 int parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_body, int rtp_size)
 {
-	auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
+    auto ip_hdr_size = IP_HL(ih) * 4;
+
+    auto hdr = reinterpret_cast<common_rtp_hdr_t const *>(rtp_body);
 	auto rtcp_hdr = reinterpret_cast<rtcp_report_hdr const *>(rtp_body);
 
 	auto src_addr = ih->saddr;
 	auto dst_addr = ih->daddr;
-	short src_port = 0;
-	short dst_port = 0;
-
-	auto ip_hdr_size = IP_HL(ih) * 4;
+    uint16_t src_port = 0;
+    uint16_t dst_port = 0;
 
 	if (ih->proto == IPPROTO_UDP) {
 		udp_header *uh = (udp_header *)((u_char*)ih + ip_hdr_size);
@@ -213,6 +210,7 @@ int parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_b
 		dst_port = htons(th->dport);
 	} else {
 		assert(false);
+        return 0;
 	}
 
 	std::string key;
@@ -239,57 +237,52 @@ int parse_rtp(global_params *params, time_t ts, ip_header const *ih, char *rtp_b
 	auto ssrc = ntohl(hdr->ssrc);
 	key += std::to_string(ssrc);
 
-	streams::iterator itr = params->srtp_streams.find(key);
-	if (itr == params->srtp_streams.end()) {
-		params->srtp_streams.insert(streams::value_type(key, rtp_info(ssrc, hdr->pt, ts)));
+    auto seq = htons(hdr->seq);
 
-		itr = params->srtp_streams.find(key);
-		itr->second.src_addr = src_addr;
-		itr->second.dst_addr = dst_addr;
-		itr->second.src_port = src_port;
-		itr->second.dst_port = dst_port;
-	}
+    verbose(params->verbose, "\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
+            hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
 
-	if (params->ssrc && params->ssrc == ssrc) {
-		auto seq = htons(hdr->seq);
+    if (!params->ssrc || (params->ssrc && params->ssrc == ssrc)) {
+        streams::iterator itr = params->srtp_streams.find(key);
+        if (itr == params->srtp_streams.end()) {
+            params->srtp_streams.insert(streams::value_type(key,
+                                                            rtp_info(ih->proto == IPPROTO_UDP, ssrc, hdr->pt, ts, seq)));
 
-		verbose(params->verbose, "\tversion=%d\n\tpad=%d\n\text=%d\n\tcc=%d\n\tpt=%d\n\tm=%d\n\tseq=%d\n\tts=%u\n\tssrc=0x%x\n",
-			hdr->version, hdr->p, hdr->x, hdr->cc, hdr->pt, hdr->m, htons(hdr->seq), htonl(hdr->ts), htonl(hdr->ssrc));
+            itr = params->srtp_streams.find(key);
+            itr->second.src_addr = src_addr;
+            itr->second.dst_addr = dst_addr;
+            itr->second.src_port = src_port;
+            itr->second.dst_port = dst_port;
+        } else {
+            if (seq != itr->second.last_seq+1) {
+                if (seq < itr->second.last_seq) {
+                    //both TCP and UDP cases
+                    if (!hdr->m) {
+                        //not first packet after re-ICE-establishing
+                        verbose(params->verbose, "rtp: reordered or retransmitted packet detected: %d, skip\n", seq);
+                        return 0;
+                    }
+                } else if (seq == itr->second.last_seq) {
+                    //UDP only case
+                    verbose(params->verbose, "rtp: copy of packet detected: %d, skip\n", seq);
+                    return 0;
+                } else {
+                    //UDP only case
+                    verbose(params->verbose, "rtp: lost packet(s) detected: %d - %d\n", itr->second.last_seq+1, seq);
+                }
+            }
 
-		if (params->first_ts) {
-			// continue of RTP track
-			if (seq != params->seq+1) {
-				if (seq < params->seq) {
-					//both TCP and UDP cases
-					if (!hdr->m) {
-						//not first packet after re-ICE-establishing
-						verbose(params->verbose, "rtp: reordered or retransmitted packet detected: %d, skip\n", seq);
-						return 0;
-					}
-				} else if (seq == params->seq) {
-					//UDP only case
-					verbose(params->verbose, "rtp: copy of packet detected: %d, skip\n", seq);
-					return 0;
-				} else {
-					//UDP only case
-					verbose(params->verbose, "rtp: lost packet(s) detected: %d - %d\n", params->seq+1, seq);
-				}
-			}
-		} else {
-			// begin of RTP track
-			params->first_ts = ts;
-		}
+            itr->second.last_ts = ts;
+            itr->second.last_seq = seq;
 
-		params->last_ts = ts;
-		params->seq = seq;
+            ++itr->second.packets;
+        }
 
-		srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
-		params->srtp_stream.push_back(srtp_packet);
-	}
-
-//	itr->second.seq = seq;
-	itr->second.last_ts = ts;
-	++itr->second.packets;
+        if (params->ssrc && params->ssrc == ssrc) {
+            srtp_packet_t srtp_packet(rtp_body, rtp_body + rtp_size);
+            itr->second.srtp_stream.push_back(srtp_packet);
+        }
+    }
 
 	return ssrc;
 }
